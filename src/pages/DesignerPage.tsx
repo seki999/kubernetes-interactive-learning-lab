@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -85,16 +85,29 @@ export function DesignerPage() {
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState<FlowNode>([])
   const [selectedUid, setSelectedUid] = useState<string | null>(null)
 
-  const visibleResources = Object.values(resources).filter((resource) => {
-    const isCreatableKind = PALETTE_ITEMS.some((item) => item.kind === resource.kind)
-    if (!isCreatableKind) return false
-    // 由 ReplicaSet/Deployment 自动创建的 Pod 不在设计器画布上单独展示，
-    // 避免扩容出来的多个 Pod 把画布挤满；这些 Pod 可以在"虚拟集群"页面查看。
-    if (resource.kind === 'Pod' && (resource.metadata.ownerReferences?.length ?? 0) > 0) {
-      return false
-    }
-    return true
-  })
+  // 必须用 useMemo 稳定这个数组的引用：它是下面 useEffect 的依赖项，
+  // 如果每次渲染都重新生成一个新数组（哪怕内容完全一样），effect 就会每次
+  // 渲染都重新触发 setNodes，而 setNodes 本身又会引发重新渲染，
+  // 变成一个永不停止的死循环（React 会报 "Maximum update depth exceeded"
+  // 并整体崩溃卸载）——这是实际渲染这个页面时发现的 bug，之前只有不真正
+  // 渲染组件的单元测试，没有测出来。
+  const visibleResources = useMemo(
+    () =>
+      Object.values(resources).filter((resource) => {
+        const isCreatableKind = PALETTE_ITEMS.some((item) => item.kind === resource.kind)
+        if (!isCreatableKind) return false
+        // 由 ReplicaSet/Deployment 自动创建的 Pod 不在设计器画布上单独展示，
+        // 避免扩容出来的多个 Pod 把画布挤满；这些 Pod 可以在"虚拟集群"页面查看。
+        if (
+          resource.kind === 'Pod' &&
+          (resource.metadata.ownerReferences?.length ?? 0) > 0
+        ) {
+          return false
+        }
+        return true
+      }),
+    [resources]
+  )
 
   // 把虚拟集群里的资源同步成画布节点：已经在画布上的节点保留当前视觉位置
   // （避免拖动过程中被重置），新增的资源用保存过的位置或自动网格位置。
