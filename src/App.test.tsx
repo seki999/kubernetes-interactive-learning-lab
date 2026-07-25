@@ -9,6 +9,9 @@ describe('App', () => {
     expect(
       screen.getByRole('heading', { name: 'Kubernetes 中文交互学习实验室' })
     ).toBeInTheDocument()
-    expect(screen.getByText(/本项目是 Kubernetes 教学模拟器/)).toBeInTheDocument()
+    // 免责声明在首页正文和页脚各出现一次，这里只确认它确实存在。
+    expect(screen.getAllByText(/本项目是 Kubernetes 教学模拟器/).length).toBeGreaterThan(
+      0
+    )
   })
 })

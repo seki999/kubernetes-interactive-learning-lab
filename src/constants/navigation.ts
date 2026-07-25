@@ -9,4 +9,10 @@ export interface NavItem {
   label: string
 }
 
-export const NAV_ITEMS: NavItem[] = [{ path: '/', label: '首页' }]
+export const NAV_ITEMS: NavItem[] = [
+  { path: '/', label: '首页' },
+  { path: '/cluster', label: '虚拟集群' },
+  { path: '/terminal', label: 'kubectl 终端' },
+  { path: '/yaml-lab', label: 'YAML 实验室' },
+  { path: '/designer', label: '拖拽式架构设计器' },
+]

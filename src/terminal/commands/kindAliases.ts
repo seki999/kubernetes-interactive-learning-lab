@@ -1,0 +1,45 @@
+import type { ResourceKind } from '@/types/k8s'
+
+/** kubectl 资源类型的常见别名（复数/单数/缩写），例如 pods / pod / po 都指向 Pod。 */
+export const KIND_ALIASES: Record<string, ResourceKind> = {
+  pod: 'Pod',
+  pods: 'Pod',
+  po: 'Pod',
+  deployment: 'Deployment',
+  deployments: 'Deployment',
+  deploy: 'Deployment',
+  replicaset: 'ReplicaSet',
+  replicasets: 'ReplicaSet',
+  rs: 'ReplicaSet',
+  service: 'Service',
+  services: 'Service',
+  svc: 'Service',
+  endpoints: 'Endpoints',
+  endpoint: 'Endpoints',
+  ep: 'Endpoints',
+  node: 'Node',
+  nodes: 'Node',
+  no: 'Node',
+  namespace: 'Namespace',
+  namespaces: 'Namespace',
+  ns: 'Namespace',
+  configmap: 'ConfigMap',
+  configmaps: 'ConfigMap',
+  cm: 'ConfigMap',
+  secret: 'Secret',
+  secrets: 'Secret',
+  persistentvolumeclaim: 'PersistentVolumeClaim',
+  persistentvolumeclaims: 'PersistentVolumeClaim',
+  pvc: 'PersistentVolumeClaim',
+  persistentvolume: 'PersistentVolume',
+  persistentvolumes: 'PersistentVolume',
+  pv: 'PersistentVolume',
+}
+
+/** kubectl get all 会展示的资源类型（贴近真实 kubectl 的默认范围）。 */
+export const GET_ALL_KINDS: ResourceKind[] = [
+  'Pod',
+  'Service',
+  'Deployment',
+  'ReplicaSet',
+]

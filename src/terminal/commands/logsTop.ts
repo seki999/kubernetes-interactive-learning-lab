@@ -1,0 +1,112 @@
+import { getResource, listResources } from '@/kubernetes/api-server/objectStore'
+import {
+  parseCpuToMillicores,
+  parseMemoryToMebibytes,
+} from '@/kubernetes/scheduler/resourceUnits'
+import { formatTable } from '@/terminal/formatter/table'
+import { parseArgs, resolveNamespace } from '@/terminal/parser/parseArgs'
+import { fail, ok, type CommandOutput } from './types'
+import type { Node, Pod } from '@/types/k8s'
+
+/**
+ * 模拟日志：浏览器里没有真实容器，日志内容是根据 Pod 当前状态生成的固定文案，
+ * 用来配合教学演示（例如 ImagePullBackOff 状态下展示拉取失败的日志），
+ * 不是真实容器输出。
+ */
+export function runLogs(argv: string[]): CommandOutput {
+  const { positional, flags } = parseArgs(argv)
+  const [podName] = positional
+  if (!podName) {
+    return fail(['error: 请指定 Pod 名称，例如 kubectl logs web-abc12'])
+  }
+  const namespace = resolveNamespace(flags)
+  const pod = getResource<Pod>('Pod', podName, namespace)
+  if (!pod) {
+    return fail([`Error from server (NotFound): pods "${podName}" not found`])
+  }
+
+  switch (pod.status.phase) {
+    case 'Pending':
+      return fail([
+        `Error from server: Pod "${podName}" 尚未运行（当前状态：Pending），没有日志可显示`,
+      ])
+    case 'ImagePullBackOff':
+      return fail([
+        `Error from server: 容器无法启动，没有日志可显示`,
+        `原因：${pod.status.message ?? '镜像拉取失败'}`,
+      ])
+    case 'ContainerCreating':
+      return ok(['正在创建容器，暂时还没有日志输出……'])
+    default:
+      return ok(
+        pod.spec.containers.flatMap((container) => [
+          `==> 容器 ${container.name}（镜像 ${container.image}）<==`,
+          `[${container.name}] 容器已启动`,
+          `[${container.name}] 正在监听端口 ${container.ports?.[0]?.containerPort ?? 80}`,
+          `[${container.name}] 就绪，等待请求`,
+        ])
+      )
+  }
+}
+
+/** 模拟资源使用率：在 request 的基础上加一点随机浮动，用于教学演示，不是真实采集的指标。 */
+function simulateUsage(requestValue: number): number {
+  if (requestValue <= 0) return 0
+  const factor = 0.4 + Math.random() * 0.5
+  return Math.round(requestValue * factor)
+}
+
+export function runTop(argv: string[]): CommandOutput {
+  const { positional, flags } = parseArgs(argv)
+  const [target] = positional
+
+  if (target === 'pod' || target === 'pods') {
+    const namespace = resolveNamespace(flags)
+    const pods = listResources<Pod>('Pod', namespace).filter(
+      (pod) => pod.status.phase === 'Running'
+    )
+    if (pods.length === 0) {
+      return ok(['No resources found.'])
+    }
+    const rows = pods.map((pod) => {
+      const requests = pod.spec.containers.reduce(
+        (total, container) => ({
+          cpu: total.cpu + parseCpuToMillicores(container.resources?.requests?.cpu),
+          memory:
+            total.memory + parseMemoryToMebibytes(container.resources?.requests?.memory),
+        }),
+        { cpu: 0, memory: 0 }
+      )
+      return [
+        pod.metadata.name,
+        `${simulateUsage(requests.cpu) || 5}m`,
+        `${simulateUsage(requests.memory) || 20}Mi`,
+      ]
+    })
+    return ok(formatTable(['NAME', 'CPU(cores)', 'MEMORY(bytes)'], rows))
+  }
+
+  if (target === 'node' || target === 'nodes') {
+    const nodes = listResources<Node>('Node')
+    const rows = nodes.map((node) => {
+      const allocatableCpu = parseCpuToMillicores(node.status.allocatable.cpu)
+      const allocatableMemory = parseMemoryToMebibytes(node.status.allocatable.memory)
+      const usedCpu = simulateUsage(allocatableCpu * 0.3)
+      const usedMemory = simulateUsage(allocatableMemory * 0.3)
+      return [
+        node.metadata.name,
+        `${usedCpu}m`,
+        `${Math.round((usedCpu / allocatableCpu) * 100) || 0}%`,
+        `${usedMemory}Mi`,
+        `${Math.round((usedMemory / allocatableMemory) * 100) || 0}%`,
+      ]
+    })
+    return ok(
+      formatTable(['NAME', 'CPU(cores)', 'CPU%', 'MEMORY(bytes)', 'MEMORY%'], rows)
+    )
+  }
+
+  return fail([
+    'error: 用法：kubectl top pod 或 kubectl top node（需要先安装 metrics-server，本项目直接模拟数据）',
+  ])
+}
