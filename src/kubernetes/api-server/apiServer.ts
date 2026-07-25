@@ -1,5 +1,6 @@
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { runControllersFor } from '@/kubernetes/controllers/reconcile'
+import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { validateResource } from './validation'
 import {
   getResource,
@@ -55,6 +56,14 @@ export function createResource<T extends KubernetesResource>(resource: T): T {
     type: 'Normal',
     reason: 'Created',
     message: `${prepared.kind} ${prepared.metadata.name} 已创建`,
+  })
+  emitDomainEvent({
+    type: 'RESOURCE_CREATED',
+    payload: {
+      kind: prepared.kind,
+      name: prepared.metadata.name,
+      namespace: prepared.metadata.namespace,
+    },
   })
   runControllersFor(prepared.kind as ResourceKind, prepared)
   return prepared
@@ -167,4 +176,5 @@ export function deleteResource(
     reason: 'Deleted',
     message: `${kind} ${name} 已删除`,
   })
+  emitDomainEvent({ type: 'RESOURCE_DELETED', payload: { kind, name, namespace } })
 }

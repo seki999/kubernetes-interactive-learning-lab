@@ -1,6 +1,7 @@
 import { getResource, patchResourceRaw } from '@/kubernetes/api-server/objectStore'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { syncReplicaSetStatus } from '@/kubernetes/controllers/statusSync'
+import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import type { Pod } from '@/types/k8s'
 
 // 虚拟 Kubelet：Pod 被 Scheduler 分配到节点之后，负责把它从 Pending
@@ -43,6 +44,7 @@ export function startKubeletForPod(podName: string, namespace: string | undefine
     reason: 'Pulling',
     message: `节点 ${pod.status.nodeName} 上的 Kubelet 开始拉取镜像`,
   })
+  emitDomainEvent({ type: 'IMAGE_PULL_STARTED', payload: { podName, namespace } })
 
   setTimeout(() => {
     finishContainerCreation(podName, namespace)
@@ -84,6 +86,10 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
       reason: 'Failed',
       message: `拉取镜像 ${invalidContainer.image} 失败：镜像不存在`,
     })
+    emitDomainEvent({
+      type: 'POD_IMAGE_PULL_FAILED',
+      payload: { podName, namespace, image: invalidContainer.image },
+    })
     return
   }
 
@@ -108,6 +114,8 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
     reason: 'Started',
     message: '容器已成功启动，Pod 进入 Running 状态',
   })
+  emitDomainEvent({ type: 'CONTAINER_STARTED', payload: { podName, namespace } })
+  emitDomainEvent({ type: 'POD_READY', payload: { podName, namespace } })
 
   const ownerReplicaSet = current.metadata.ownerReferences?.find(
     (ref) => ref.kind === 'ReplicaSet'

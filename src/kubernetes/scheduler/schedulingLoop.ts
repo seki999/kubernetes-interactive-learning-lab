@@ -4,6 +4,7 @@ import {
   patchResourceRaw,
 } from '@/kubernetes/api-server/objectStore'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
+import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { startKubeletForPod } from '@/kubernetes/kubelet/kubelet'
 import { selectNodeForPod } from './scheduler'
 import type { Node, Pod } from '@/types/k8s'
@@ -44,6 +45,10 @@ export function trySchedulePod(podName: string, namespace: string | undefined): 
       reason: 'FailedScheduling',
       message: `调度失败：${reasonSummary}`,
     })
+    emitDomainEvent({
+      type: 'POD_SCHEDULE_PENDING',
+      payload: { podName, namespace, reason: reasonSummary },
+    })
     return
   }
 
@@ -61,6 +66,10 @@ export function trySchedulePod(podName: string, namespace: string | undefined): 
     type: 'Normal',
     reason: 'Scheduled',
     message: `Pod 已成功调度到节点 ${result.nodeName}`,
+  })
+  emitDomainEvent({
+    type: 'POD_SCHEDULED',
+    payload: { podName, namespace, nodeName: result.nodeName },
   })
 
   startKubeletForPod(podName, namespace)

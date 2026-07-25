@@ -6,6 +6,7 @@ import {
   putResourceRaw,
 } from '@/kubernetes/api-server/objectStore'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
+import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import type { Endpoints, Pod, Service } from '@/types/k8s'
 
 function matchesSelector(pod: Pod, selector: Record<string, string>): boolean {
@@ -73,6 +74,10 @@ export function reconcileService(service: Service): void {
     })),
   }
   putResourceRaw(endpoints)
+  emitDomainEvent({
+    type: 'SERVICE_ENDPOINTS_UPDATED',
+    payload: { name: service.metadata.name, namespace, readyCount: readyPods.length },
+  })
 
   if (readyPods.length === 0) {
     emitEvent({

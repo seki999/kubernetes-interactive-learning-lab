@@ -165,3 +165,33 @@ describe('Deployment 控制器', () => {
     expect(listResources<Pod>('Pod', 'default')).toHaveLength(0)
   })
 })
+
+describe('Deployment 控制器 - 领域事件', () => {
+  it('扩缩容时会广播 DEPLOYMENT_SCALED 领域事件', async () => {
+    const { subscribeDomainEvents, resetDomainEventListeners } = await import(
+      '@/simulation/event-bus/eventBus'
+    )
+    useEtcdStore.getState().resetCluster()
+    vi.useFakeTimers()
+    seedNode()
+    createWebDeployment(2)
+    await vi.advanceTimersByTimeAsync(600)
+
+    const received: unknown[] = []
+    const unsubscribe = subscribeDomainEvents((event) => received.push(event))
+
+    updateResource<Deployment>('Deployment', 'web', 'default', (current) => ({
+      ...current,
+      spec: { ...current.spec, replicas: 5 },
+    }))
+
+    expect(received).toContainEqual({
+      type: 'DEPLOYMENT_SCALED',
+      payload: { name: 'web', namespace: 'default', fromReplicas: 2, toReplicas: 5 },
+    })
+
+    unsubscribe()
+    resetDomainEventListeners()
+    vi.useRealTimers()
+  })
+})

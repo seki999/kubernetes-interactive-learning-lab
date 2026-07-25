@@ -5,6 +5,7 @@ import {
   putResourceRaw,
 } from '@/kubernetes/api-server/objectStore'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
+import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { reconcileReplicaSet } from './replicaSetController'
 import type { Deployment, ReplicaSet } from '@/types/k8s'
 
@@ -66,11 +67,23 @@ export function reconcileDeployment(deployment: Deployment): void {
       message: `Deployment ${deployment.metadata.name} 创建了 ReplicaSet ${rsName}`,
     })
   } else {
+    const replicasChanged = targetReplicaSet.spec.replicas !== deployment.spec.replicas
     const specChanged =
-      targetReplicaSet.spec.replicas !== deployment.spec.replicas ||
+      replicasChanged ||
       JSON.stringify(targetReplicaSet.spec.template) !==
         JSON.stringify(deployment.spec.template)
     if (specChanged) {
+      if (replicasChanged) {
+        emitDomainEvent({
+          type: 'DEPLOYMENT_SCALED',
+          payload: {
+            name: deployment.metadata.name,
+            namespace,
+            fromReplicas: targetReplicaSet.spec.replicas,
+            toReplicas: deployment.spec.replicas,
+          },
+        })
+      }
       targetReplicaSet = {
         ...targetReplicaSet,
         spec: {

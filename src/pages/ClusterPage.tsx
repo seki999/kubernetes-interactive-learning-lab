@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { formatAge } from '@/terminal/formatter/table'
 import { ResourceDetailPanel } from '@/components/ResourceDetailPanel'
+import { ClusterTopology } from '@/components/Topology/ClusterTopology'
 import { ALL_RESOURCE_KINDS, isClusterScoped } from '@/types/k8s'
 import type { KubernetesResource, Namespace, ResourceKind } from '@/types/k8s'
 
@@ -53,11 +54,18 @@ function getStatusSummary(resource: KubernetesResource): string {
   }
 }
 
-/** "虚拟集群"页面：资源列表 + 点击查看详情面板（对应需求文档"资源列表"和"资源详情面板"）。 */
+type ViewMode = 'list' | 'topology'
+
+/**
+ * "虚拟集群"页面：资源列表 + 点击查看详情面板（对应需求文档"资源列表"和"资源详情面板"），
+ * 以及一个只读的集群拓扑图视图（对应需求文档第七节、第十一节"集群可视化"），
+ * 两种视图通过顶部的 列表/拓扑图 切换。
+ */
 export function ClusterPage() {
   const resources = useEtcdStore((state) => state.resources)
   const allResources = useMemo(() => Object.values(resources), [resources])
 
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedKind, setSelectedKind] = useState<ResourceKind>('Pod')
   const [selectedNamespace, setSelectedNamespace] = useState('__all__')
   const [selectedUid, setSelectedUid] = useState<string | null>(null)
@@ -94,6 +102,39 @@ export function ClusterPage() {
         </p>
       </div>
 
+      <div className="flex gap-1 text-sm">
+        <button
+          type="button"
+          onClick={() => setViewMode('list')}
+          className={`rounded-md border px-3 py-1 ${
+            viewMode === 'list'
+              ? 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-600 dark:bg-sky-950 dark:text-sky-300'
+              : 'border-slate-300 dark:border-slate-600'
+          }`}
+        >
+          列表
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('topology')}
+          className={`rounded-md border px-3 py-1 ${
+            viewMode === 'topology'
+              ? 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-600 dark:bg-sky-950 dark:text-sky-300'
+              : 'border-slate-300 dark:border-slate-600'
+          }`}
+        >
+          拓扑图
+        </button>
+      </div>
+
+      {viewMode === 'topology' && (
+        <div className="min-h-0 flex-1">
+          <ClusterTopology />
+        </div>
+      )}
+
+      {viewMode === 'list' && (
+      <>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <select
           value={selectedKind}
@@ -181,6 +222,8 @@ export function ClusterPage() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }
