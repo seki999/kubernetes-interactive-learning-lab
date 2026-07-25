@@ -1,0 +1,44 @@
+import { reconcileDeployment } from './deploymentController'
+import { reconcileReplicaSet } from './replicaSetController'
+import { reconcileService } from './endpointController'
+import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
+import type {
+  Deployment,
+  KubernetesResource,
+  ReplicaSet,
+  ResourceKind,
+  Service,
+} from '@/types/k8s'
+
+/**
+ * 简化版 Controller Manager 的调度入口。
+ *
+ * 真实 Kubernetes 的 Controller Manager 通过 Informer/Watch 持续监听资源变化；
+ * 这里没有实现完整的 watch 机制，而是由虚拟 API Server 在每次资源被创建/更新后
+ * 直接调用 runControllersFor，效果等价（"资源变化后自动调谐"），实现上更直接。
+ *
+ * 当前接入的控制器：Deployment、ReplicaSet、Service（Endpoint 控制器）、
+ * 以及 Pod 创建后触发的 Scheduler。StatefulSet / DaemonSet / Job / CronJob /
+ * Node / HPA 控制器尚未实现，会在后续阶段补充。
+ */
+export function runControllersFor(
+  kind: ResourceKind,
+  resource: KubernetesResource
+): void {
+  switch (kind) {
+    case 'Deployment':
+      reconcileDeployment(resource as Deployment)
+      break
+    case 'ReplicaSet':
+      reconcileReplicaSet(resource as ReplicaSet)
+      break
+    case 'Service':
+      reconcileService(resource as Service)
+      break
+    case 'Pod':
+      trySchedulePod(resource.metadata.name, resource.metadata.namespace)
+      break
+    default:
+      break
+  }
+}

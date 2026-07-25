@@ -1,0 +1,59 @@
+import type { KubernetesResource } from '@/types/k8s'
+
+const DNS_1123_NAME = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/
+
+/**
+ * 基础结构校验，对应需求文档第六节列出的常见错误提示。
+ * 这里先实现创建/更新资源时必须满足的最基本规则；
+ * YAML 编辑器阶段会在此基础上补充更完整的 Schema 校验（跨字段引用等）。
+ *
+ * 返回中文错误信息数组，空数组表示校验通过。
+ */
+export function validateResource(resource: KubernetesResource): string[] {
+  const errors: string[] = []
+
+  if (!resource.apiVersion) {
+    errors.push('缺少 apiVersion')
+  }
+  if (!resource.kind) {
+    errors.push('缺少 kind')
+  }
+  if (!resource.metadata?.name) {
+    errors.push('metadata.name 不能为空')
+  } else if (!DNS_1123_NAME.test(resource.metadata.name)) {
+    errors.push(
+      '资源名称不符合 DNS 命名规则（只能包含小写字母、数字和"-"，且不能以"-"开头或结尾）'
+    )
+  }
+
+  if (resource.kind === 'Deployment' || resource.kind === 'ReplicaSet') {
+    const matchLabels = resource.spec.selector?.matchLabels
+    if (!matchLabels || Object.keys(matchLabels).length === 0) {
+      errors.push(`${resource.kind} 必须设置 selector`)
+    } else {
+      const templateLabels = resource.spec.template?.metadata?.labels ?? {}
+      const selectorMatchesTemplate = Object.entries(matchLabels).every(
+        ([key, value]) => templateLabels[key] === value
+      )
+      if (!selectorMatchesTemplate) {
+        errors.push('selector 与 template labels 不匹配')
+      }
+    }
+    const containers = resource.spec.template?.spec?.containers ?? []
+    containers.forEach((container, index) => {
+      if (!container.image) {
+        errors.push(`第 ${index + 1} 个容器缺少 image`)
+      }
+    })
+  }
+
+  if (resource.kind === 'Pod') {
+    resource.spec.containers.forEach((container, index) => {
+      if (!container.image) {
+        errors.push(`第 ${index + 1} 个容器缺少 image`)
+      }
+    })
+  }
+
+  return errors
+}

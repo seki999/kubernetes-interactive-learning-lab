@@ -1,0 +1,118 @@
+import { getResource, patchResourceRaw } from '@/kubernetes/api-server/objectStore'
+import { emitEvent } from '@/kubernetes/events/emitEvent'
+import { syncReplicaSetStatus } from '@/kubernetes/controllers/statusSync'
+import type { Pod } from '@/types/k8s'
+
+// 虚拟 Kubelet：Pod 被 Scheduler 分配到节点之后，负责把它从 Pending
+// 推进到 Running（模拟拉取镜像、启动容器），或者在镜像非法时进入
+// ImagePullBackOff。
+//
+// 简化说明：
+// - 只模拟"镜像不存在"这一种失败路径（对应需求文档第二十八节的示例
+//   image: nginx:not-exist）；CrashLoopBackOff / OOMKilled 等需要用户主动
+//   触发的故障，会在"故障实验室"阶段通过显式操作实现，而不是靠猜测镜像名。
+// - 用 setTimeout 模拟"需要一点时间"，具体时长通过常量导出，方便测试中用
+//   vi.useFakeTimers() 精确推进。
+
+export const KUBELET_RUNNING_DELAY_MS = 500
+
+function isInvalidImage(image: string): boolean {
+  const normalized = image.trim().toLowerCase()
+  return (
+    normalized === '' ||
+    normalized.includes('not-exist') ||
+    normalized.includes('notfound') ||
+    normalized.includes('invalid')
+  )
+}
+
+/** Pod 被调度后调用：开始"拉取镜像 → 启动容器"的模拟流程。 */
+export function startKubeletForPod(podName: string, namespace: string | undefined): void {
+  const pod = getResource<Pod>('Pod', podName, namespace)
+  if (!pod || !pod.status.nodeName) {
+    return
+  }
+
+  patchResourceRaw<Pod>('Pod', podName, namespace, (current) => ({
+    ...current,
+    status: { ...current.status, phase: 'ContainerCreating' },
+  }))
+  emitEvent({
+    involvedObject: { kind: 'Pod', name: podName, namespace },
+    type: 'Normal',
+    reason: 'Pulling',
+    message: `节点 ${pod.status.nodeName} 上的 Kubelet 开始拉取镜像`,
+  })
+
+  setTimeout(() => {
+    finishContainerCreation(podName, namespace)
+  }, KUBELET_RUNNING_DELAY_MS)
+}
+
+function finishContainerCreation(podName: string, namespace: string | undefined): void {
+  const current = getResource<Pod>('Pod', podName, namespace)
+  // Pod 可能在拉取镜像期间被删除，此时不再继续推进状态。
+  if (!current || current.metadata.deletionTimestamp) {
+    return
+  }
+
+  const invalidContainer = current.spec.containers.find((container) =>
+    isInvalidImage(container.image)
+  )
+
+  if (invalidContainer) {
+    patchResourceRaw<Pod>('Pod', podName, namespace, (pod) => ({
+      ...pod,
+      status: {
+        ...pod.status,
+        phase: 'ImagePullBackOff',
+        reason: 'ImagePullBackOff',
+        message: `镜像 ${invalidContainer.image} 拉取失败，节点上不存在该镜像`,
+        containerStatuses: pod.spec.containers.map((container) => ({
+          name: container.name,
+          ready: false,
+          restartCount: 0,
+          state: 'waiting',
+          reason:
+            container.name === invalidContainer.name ? 'ImagePullBackOff' : 'waiting',
+        })),
+      },
+    }))
+    emitEvent({
+      involvedObject: { kind: 'Pod', name: podName, namespace },
+      type: 'Warning',
+      reason: 'Failed',
+      message: `拉取镜像 ${invalidContainer.image} 失败：镜像不存在`,
+    })
+    return
+  }
+
+  patchResourceRaw<Pod>('Pod', podName, namespace, (pod) => ({
+    ...pod,
+    status: {
+      ...pod.status,
+      phase: 'Running',
+      podIP: `10.244.0.${Math.floor(Math.random() * 254) + 1}`,
+      startTime: new Date().toISOString(),
+      containerStatuses: pod.spec.containers.map((container) => ({
+        name: container.name,
+        ready: true,
+        restartCount: 0,
+        state: 'running',
+      })),
+    },
+  }))
+  emitEvent({
+    involvedObject: { kind: 'Pod', name: podName, namespace },
+    type: 'Normal',
+    reason: 'Started',
+    message: '容器已成功启动，Pod 进入 Running 状态',
+  })
+
+  const ownerReplicaSet = current.metadata.ownerReferences?.find(
+    (ref) => ref.kind === 'ReplicaSet'
+  )
+  if (ownerReplicaSet) {
+    syncReplicaSetStatus(ownerReplicaSet.name, namespace)
+  }
+}
