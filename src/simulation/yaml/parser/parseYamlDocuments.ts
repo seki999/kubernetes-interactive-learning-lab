@@ -1,6 +1,7 @@
 import { loadAll, YAMLException } from 'js-yaml'
 import { validateResource } from '@/kubernetes/api-server/validation'
-import type { KubernetesResource } from '@/types/k8s'
+import { isClusterScoped, type KubernetesResource, type ResourceKind } from '@/types/k8s'
+import { applyDefaultStatus } from './defaultStatus'
 
 export interface ParsedYamlDocument {
   index: number
@@ -54,6 +55,16 @@ export function parseYamlDocuments(source: string): ParseYamlResult {
     if (!resource.metadata) {
       return { index, resource: null, errors: ['metadata.name 不能为空'] }
     }
+    // 命名空间级资源如果 YAML 里没写 namespace 字段，补一个默认值 'default'，
+    // 和 kubectl create（见 create.ts 的 resolveNamespace）保持一致——否则
+    // 这份资源会以 metadata.namespace === undefined 的状态存进虚拟 etcd，
+    // 之后 kubectl get（不带 -n，默认查 default 命名空间）会因为严格比较
+    // undefined !== 'default' 而查不到，效果就像资源"applied 却读不到"。
+    if (!resource.metadata.namespace && !isClusterScoped(resource.kind as ResourceKind)) {
+      resource.metadata.namespace = 'default'
+    }
+    // 补全用户没有手写的 status 字段，详见 defaultStatus.ts 顶部注释。
+    applyDefaultStatus(resource)
     const errors = validateResource(resource)
     return { index, resource, errors }
   })
