@@ -22,6 +22,24 @@ const YamlLabPage = lazy(() =>
 const DesignerPage = lazy(() =>
   import('@/pages/DesignerPage').then((m) => ({ default: m.DesignerPage }))
 )
+const CourseCenterPage = lazy(() =>
+  import('@/pages/CourseCenterPage').then((m) => ({ default: m.CourseCenterPage }))
+)
+const CourseDetailPage = lazy(() =>
+  import('@/pages/CourseDetailPage').then((m) => ({ default: m.CourseDetailPage }))
+)
+const LabListPage = lazy(() =>
+  import('@/pages/LabListPage').then((m) => ({ default: m.LabListPage }))
+)
+const LabRunnerPage = lazy(() =>
+  import('@/pages/LabRunnerPage').then((m) => ({ default: m.LabRunnerPage }))
+)
+const FaultLabPage = lazy(() =>
+  import('@/pages/FaultLabPage').then((m) => ({ default: m.FaultLabPage }))
+)
+const ProgressPage = lazy(() =>
+  import('@/pages/ProgressPage').then((m) => ({ default: m.ProgressPage }))
+)
 
 function PageLoadingFallback() {
   return <div className="p-6 text-sm text-slate-500 dark:text-slate-400">加载中……</div>
@@ -79,6 +97,54 @@ export default function App() {
             element={
               <Suspense fallback={<PageLoadingFallback />}>
                 <DesignerPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/courses"
+            element={
+              <Suspense fallback={<PageLoadingFallback />}>
+                <CourseCenterPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/courses/:courseId"
+            element={
+              <Suspense fallback={<PageLoadingFallback />}>
+                <CourseDetailPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/labs"
+            element={
+              <Suspense fallback={<PageLoadingFallback />}>
+                <LabListPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/labs/:labId"
+            element={
+              <Suspense fallback={<PageLoadingFallback />}>
+                <LabRunnerPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/fault-lab"
+            element={
+              <Suspense fallback={<PageLoadingFallback />}>
+                <FaultLabPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/progress"
+            element={
+              <Suspense fallback={<PageLoadingFallback />}>
+                <ProgressPage />
               </Suspense>
             }
           />

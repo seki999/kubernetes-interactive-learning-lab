@@ -1,6 +1,7 @@
 import { getResource, patchResourceRaw } from '@/kubernetes/api-server/objectStore'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { syncReplicaSetStatus } from '@/kubernetes/controllers/statusSync'
+import { reconcileServicesForNamespace } from '@/kubernetes/controllers/endpointController'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import type { Pod } from '@/types/k8s'
 
@@ -123,4 +124,7 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
   if (ownerReplicaSet) {
     syncReplicaSetStatus(ownerReplicaSet.name, namespace)
   }
+  // Pod 刚变为 Running/Ready，可能正好是某个 Service 一直在等待的后端，
+  // 主动重新计算一次 Endpoints（见 endpointController.ts 的说明）。
+  reconcileServicesForNamespace(namespace)
 }

@@ -2,7 +2,7 @@ import { listResources } from '@/kubernetes/api-server/objectStore'
 import { KIND_ALIASES } from '@/terminal/commands/kindAliases'
 import { tokenize } from '@/terminal/parser/tokenize'
 
-const SUBCOMMANDS = [
+export const SUBCOMMANDS = [
   'get',
   'describe',
   'create',

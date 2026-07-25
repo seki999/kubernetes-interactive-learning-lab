@@ -154,6 +154,33 @@ describe('Deployment 控制器', () => {
     expect(pods[0].status.phase).toBe('ImagePullBackOff')
   })
 
+  it('修改镜像后会重建所有 Pod（简化版滚动更新，无 maxSurge 分批）', async () => {
+    createWebDeployment(2)
+    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
+    const oldPodNames = listResources<Pod>('Pod', 'default').map((pod) => pod.metadata.name)
+
+    updateResource<Deployment>('Deployment', 'web', 'default', (current) => ({
+      ...current,
+      spec: {
+        ...current.spec,
+        template: {
+          ...current.spec.template,
+          spec: { containers: [{ name: 'web', image: 'nginx:1.28' }] },
+        },
+      },
+    }))
+
+    const newPods = listResources<Pod>('Pod', 'default')
+    expect(newPods).toHaveLength(2)
+    expect(newPods.every((pod) => !oldPodNames.includes(pod.metadata.name))).toBe(true)
+    expect(newPods.every((pod) => pod.spec.containers[0].image === 'nginx:1.28')).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
+    expect(
+      listResources<Pod>('Pod', 'default').every((pod) => pod.status.phase === 'Running')
+    ).toBe(true)
+  })
+
   it('删除 Deployment 会级联删除 ReplicaSet 和 Pod', async () => {
     createWebDeployment(2)
     await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
@@ -163,6 +190,28 @@ describe('Deployment 控制器', () => {
 
     expect(listResources<ReplicaSet>('ReplicaSet', 'default')).toHaveLength(0)
     expect(listResources<Pod>('Pod', 'default')).toHaveLength(0)
+  })
+
+  it('单独删除一个由 ReplicaSet 管理的 Pod 时，会被自动重新创建替补（自愈能力）', async () => {
+    createWebDeployment(2)
+    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
+
+    const before = listResources<Pod>('Pod', 'default')
+    expect(before).toHaveLength(2)
+    const victimName = before[0].metadata.name
+
+    const { deleteResource } = await import('@/kubernetes/api-server/apiServer')
+    deleteResource('Pod', victimName, 'default')
+
+    // 副本数应该立刻收敛回 2（旧的一个被删，ReplicaSet 立刻补了一个新的）。
+    const afterDelete = listResources<Pod>('Pod', 'default')
+    expect(afterDelete).toHaveLength(2)
+    expect(afterDelete.some((pod) => pod.metadata.name === victimName)).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
+    expect(
+      listResources<Pod>('Pod', 'default').every((pod) => pod.status.phase === 'Running')
+    ).toBe(true)
   })
 })
 

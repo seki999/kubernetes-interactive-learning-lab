@@ -126,12 +126,17 @@ export function applyResource<T extends KubernetesResource>(resource: T): T {
 }
 
 /**
- * 删除一个资源，并级联删除：
+ * 删除一个资源的内部实现，只负责级联删除本身，不处理"删除后通知所有者
+ * 控制器"这件事——级联删除子资源时（例如删除 Deployment 连带删除它名下
+ * 的 ReplicaSet 和 Pod），中间被删掉的 Pod 不应该被 ReplicaSet 控制器
+ * 当场"发现少了一个、立刻补一个"，那样会和"整体删除"的意图矛盾。
+ *
+ * 级联规则：
  * 1. 所有 ownerReferences 指向它的子资源（例如删除 Deployment 级联删除 ReplicaSet 和 Pod）；
  * 2. 如果删除的是 Namespace，级联删除该命名空间下的全部资源；
  * 3. 如果删除的是 Service，同步删除它的 Endpoints。
  */
-export function deleteResource(
+function deleteResourceCascade(
   kind: ResourceKind,
   name: string,
   namespace?: string
@@ -145,7 +150,7 @@ export function deleteResource(
     candidate.metadata.ownerReferences?.some((ref) => ref.uid === resource.metadata.uid)
   )
   for (const child of children) {
-    deleteResource(
+    deleteResourceCascade(
       child.kind as ResourceKind,
       child.metadata.name,
       child.metadata.namespace
@@ -157,7 +162,7 @@ export function deleteResource(
       (candidate) => candidate.metadata.namespace === name
     )
     for (const item of residents) {
-      deleteResource(
+      deleteResourceCascade(
         item.kind as ResourceKind,
         item.metadata.name,
         item.metadata.namespace
@@ -177,4 +182,37 @@ export function deleteResource(
     message: `${kind} ${name} 已删除`,
   })
   emitDomainEvent({ type: 'RESOURCE_DELETED', payload: { kind, name, namespace } })
+}
+
+/**
+ * 删除一个资源（供 kubectl delete / YAML 删除 / 资源详情面板等入口调用）。
+ *
+ * 在级联删除的基础上，只在"用户直接删除的这一个资源"这一层，额外检查它
+ * 是否属于某个 ReplicaSet——如果是，删除完成后主动让该 ReplicaSet 重新
+ * 调谐一次。这样单独删除一个由 Deployment/ReplicaSet 管理的 Pod 时，
+ * 会立刻观察到一个新 Pod 被创建出来，符合"删除 Pod 故障"里
+ * "Deployment 具备自愈能力"的教学预期；而删除整个 Deployment/ReplicaSet
+ * 时，级联删除的子 Pod 不会触发这个补偿逻辑（见 deleteResourceCascade）。
+ */
+export function deleteResource(
+  kind: ResourceKind,
+  name: string,
+  namespace?: string
+): void {
+  const resource = getResource(kind, name, namespace)
+  if (!resource) {
+    return
+  }
+  const replicaSetOwnerRef = resource.metadata.ownerReferences?.find(
+    (ref) => ref.kind === 'ReplicaSet'
+  )
+
+  deleteResourceCascade(kind, name, namespace)
+
+  if (replicaSetOwnerRef) {
+    const owner = getResource('ReplicaSet', replicaSetOwnerRef.name, namespace)
+    if (owner) {
+      runControllersFor('ReplicaSet', owner)
+    }
+  }
 }

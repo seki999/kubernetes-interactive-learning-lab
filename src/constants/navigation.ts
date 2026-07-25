@@ -15,4 +15,8 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/terminal', label: 'kubectl 终端' },
   { path: '/yaml-lab', label: 'YAML 实验室' },
   { path: '/designer', label: '拖拽式架构设计器' },
+  { path: '/courses', label: '课程中心' },
+  { path: '/labs', label: '实验任务' },
+  { path: '/fault-lab', label: '故障实验室' },
+  { path: '/progress', label: '学习进度' },
 ]

@@ -57,6 +57,27 @@ export interface ServiceRequestSimulatedPayload {
   targetPodName: string
 }
 
+export interface PvcBindingPayload {
+  name: string
+  namespace?: string
+}
+
+export interface PvcBoundPayload {
+  name: string
+  namespace?: string
+  volumeName: string
+}
+
+export interface NodeNotReadyPayload {
+  nodeName: string
+}
+
+export interface PodRescheduledPayload {
+  podName: string
+  namespace?: string
+  fromNodeName: string
+}
+
 export type DomainEvent =
   | { type: 'RESOURCE_CREATED'; payload: ResourceLifecyclePayload }
   | { type: 'RESOURCE_DELETED'; payload: ResourceLifecyclePayload }
@@ -69,6 +90,10 @@ export type DomainEvent =
   | { type: 'DEPLOYMENT_SCALED'; payload: DeploymentScaledPayload }
   | { type: 'SERVICE_ENDPOINTS_UPDATED'; payload: ServiceEndpointsUpdatedPayload }
   | { type: 'SERVICE_REQUEST_SIMULATED'; payload: ServiceRequestSimulatedPayload }
+  | { type: 'PVC_BINDING_STARTED'; payload: PvcBindingPayload }
+  | { type: 'PVC_BOUND'; payload: PvcBoundPayload }
+  | { type: 'NODE_NOT_READY'; payload: NodeNotReadyPayload }
+  | { type: 'POD_RESCHEDULED'; payload: PodRescheduledPayload }
 
 export type DomainEventType = DomainEvent['type']
 

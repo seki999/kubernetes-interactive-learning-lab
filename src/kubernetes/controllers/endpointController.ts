@@ -88,3 +88,19 @@ export function reconcileService(service: Service): void {
     })
   }
 }
+
+/**
+ * 重新计算某个 Namespace 下所有 Service 的 Endpoints。
+ *
+ * 背景：reconcileService 原本只在 Service 自己被创建/更新时触发；但 Pod 的
+ * 就绪状态是异步变化的（Kubelet 拉镜像需要时间，Node 故障会让 Pod 突然
+ * 失去就绪状态），如果 Service 早于 Pod 就绪就已经创建好，且之后不再被
+ * 修改，Endpoints 会一直停留在旧结果上。Kubelet（Pod 变为 Running 时）和
+ * Node 控制器（Pod 被驱逐时）都会调用这个函数，让 Endpoints 及时反映
+ * Pod 实际就绪状态的变化，而不需要用户重新触发一次 Service 更新。
+ */
+export function reconcileServicesForNamespace(namespace: string | undefined): void {
+  for (const service of listResources<Service>('Service', namespace)) {
+    reconcileService(service)
+  }
+}

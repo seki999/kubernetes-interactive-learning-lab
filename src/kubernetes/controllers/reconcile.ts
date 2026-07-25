@@ -1,10 +1,14 @@
 import { reconcileDeployment } from './deploymentController'
 import { reconcileReplicaSet } from './replicaSetController'
 import { reconcileService } from './endpointController'
+import { reconcilePvc, reconcilePv } from './pvcController'
+import { reconcileNode } from './nodeController'
 import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
 import type {
   Deployment,
   KubernetesResource,
+  Node,
+  PersistentVolumeClaim,
   ReplicaSet,
   ResourceKind,
   Service,
@@ -18,8 +22,9 @@ import type {
  * 直接调用 runControllersFor，效果等价（"资源变化后自动调谐"），实现上更直接。
  *
  * 当前接入的控制器：Deployment、ReplicaSet、Service（Endpoint 控制器）、
+ * PersistentVolumeClaim/PersistentVolume（绑定控制器）、Node（故障重新调度）、
  * 以及 Pod 创建后触发的 Scheduler。StatefulSet / DaemonSet / Job / CronJob /
- * Node / HPA 控制器尚未实现，会在后续阶段补充。
+ * HPA 控制器尚未实现，会在后续阶段补充。
  */
 export function runControllersFor(
   kind: ResourceKind,
@@ -37,6 +42,15 @@ export function runControllersFor(
       break
     case 'Pod':
       trySchedulePod(resource.metadata.name, resource.metadata.namespace)
+      break
+    case 'PersistentVolumeClaim':
+      reconcilePvc(resource as PersistentVolumeClaim)
+      break
+    case 'PersistentVolume':
+      reconcilePv()
+      break
+    case 'Node':
+      reconcileNode(resource as Node)
       break
     default:
       break

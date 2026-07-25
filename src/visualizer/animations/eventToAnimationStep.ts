@@ -113,6 +113,42 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
         explanation: `模拟请求：Service ${event.payload.serviceName} 通过负载均衡把请求转发到 Pod ${event.payload.targetPodName}`,
       }
     }
+    case 'PVC_BINDING_STARTED': {
+      const pvcId = buildResourceKey('PersistentVolumeClaim', event.payload.name, event.payload.namespace)
+      return {
+        id: stepId,
+        nodeIds: [pvcId],
+        edgeIds: [],
+        explanation: `开始为 PVC ${event.payload.name} 寻找匹配的 PV`,
+      }
+    }
+    case 'PVC_BOUND': {
+      const pvcId = buildResourceKey('PersistentVolumeClaim', event.payload.name, event.payload.namespace)
+      return {
+        id: stepId,
+        nodeIds: [pvcId],
+        edgeIds: [],
+        explanation: `PVC ${event.payload.name} 已绑定到 PV ${event.payload.volumeName}`,
+      }
+    }
+    case 'NODE_NOT_READY': {
+      const nodeId = buildResourceKey('Node', event.payload.nodeName)
+      return {
+        id: stepId,
+        nodeIds: [nodeId],
+        edgeIds: [],
+        explanation: `节点 ${event.payload.nodeName} 变为 NotReady，其上的 Pod 将被重新调度`,
+      }
+    }
+    case 'POD_RESCHEDULED': {
+      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      return {
+        id: stepId,
+        nodeIds: [podId],
+        edgeIds: [],
+        explanation: `Pod ${event.payload.podName} 因节点 ${event.payload.fromNodeName} 故障被重新调度`,
+      }
+    }
     case 'RESOURCE_DELETED':
       return null
     default:
