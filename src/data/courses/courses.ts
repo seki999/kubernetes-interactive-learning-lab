@@ -6,7 +6,7 @@
 // 系统读取当前虚拟集群状态自动判断是否达成，这样课程操作才能真正
 // 关联到虚拟集群，而不是自我报告"我做完了"。
 //
-// 诚实说明：StatefulSet / DaemonSet / Job / CronJob / Ingress / HPA / PDB /
+// 诚实说明：StatefulSet / DaemonSet / Ingress / HPA / PDB /
 // RBAC / ServiceAccount / NetworkPolicy 这些资源类型当前虚拟集群尚未实现
 // （见 src/types/k8s/index.ts 的 ResourceKind），对应课程仍然提供完整的
 // 概念讲解、架构图、命令示例和 YAML 示例，但没有 verification 字段——
@@ -22,6 +22,8 @@ import type {
   PersistentVolumeClaim,
   Secret,
   Service,
+  Job,
+  CronJob,
 } from '@/types/k8s'
 
 export const COURSES: Course[] = [
@@ -2048,5 +2050,102 @@ spec:
     commonMistakes: [`Deployment 引用了一个还不存在的 ConfigMap 名字，导致环境变量注入失败`],
     summary: `综合实战把前面学到的资源类型串联成一个完整应用架构。完成这一课后，
 建议继续挑战"实验任务"里更完整的故障排查和自动扩缩容场景。`,
+  },
+  {
+    id: 'job-batch-processing',
+    index: 31,
+    title: `Job：可靠地完成一次性任务`,
+    objectives: [`理解 completions、parallelism 和 backoffLimit`, `观察 Job Pod 成功、失败和重试`],
+    concept: [
+      `Job 用于数据库迁移、报表生成、批量转换等“完成后退出”的任务。它通过 Pod 执行工作，并持续统计 active、succeeded 和 failed。`,
+      `completions 决定需要多少次成功，parallelism 控制同时运行多少个 Pod，backoffLimit 限制失败后的重试次数。`,
+    ],
+    diagram: [
+      { label: `Job`, description: `声明完成次数与重试限制` },
+      { label: `Job Controller`, description: `创建、补足工作 Pod` },
+      { label: `Pod`, description: `Succeeded 或 Failed` },
+    ],
+    steps: [`应用 Job YAML`, `使用 kubectl get jobs 观察状态`, `查看 Pod 与 Events`, `使用 kubectl logs job/batch-report 查看日志`],
+    commandExamples: [`kubectl create job quick-task --image=busybox:1.36`, `kubectl describe job quick-task`, `kubectl logs job/quick-task`],
+    yamlExample: `apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-report
+spec:
+  completions: 3
+  parallelism: 2
+  backoffLimit: 2
+  template:
+    spec:
+      containers:
+        - name: report
+          image: busybox:1.36`,
+    verification: {
+      instruction: `创建名为 batch-report 的 Job，并让它成功完成`,
+      verify: (resources) =>
+        resources.some(
+          (resource): resource is Job =>
+            resource.kind === 'Job' &&
+            resource.metadata.name === 'batch-report' &&
+            resource.status.condition === 'Complete'
+        ),
+    },
+    quiz: [{
+      question: `哪个字段限制 Job 同时运行的 Pod 数量？`,
+      options: [`completions`, `parallelism`, `backoffLimit`, `schedule`],
+      correctIndex: 1,
+      explanation: `parallelism 是并行上限，completions 是成功目标数。`,
+    }],
+    commonMistakes: [`把 Job Pod 当成长时间运行的服务，期待它一直保持 Running`],
+    summary: `Job 用控制器保证一次性工作最终完成，并把失败重试变成声明式行为。`,
+  },
+  {
+    id: 'cronjob-scheduling',
+    index: 32,
+    title: `CronJob：定时创建 Job`,
+    objectives: [`理解 schedule 与 suspend`, `理解 Allow、Forbid、Replace 并发策略`, `使用模拟时间和手动触发`],
+    concept: [
+      `CronJob 是 Job 的计划生成器。到达 schedule 指定时间时，它创建一个 Job，再由 Job Controller 管理实际 Pod。`,
+      `本实验室提供可控模拟时间，支持五段式 Cron 的星号、间隔步长和具体数字；不模拟完整 Cron 语法和时区系统。`,
+    ],
+    diagram: [
+      { label: `CronJob`, description: `保存计划与并发策略` },
+      { label: `Job`, description: `每次触发创建一份` },
+      { label: `Pod`, description: `执行批处理` },
+    ],
+    steps: [`创建 CronJob`, `在详情页推进 5 分钟`, `观察新 Job`, `切换 concurrencyPolicy 比较行为`],
+    commandExamples: [`kubectl get cronjobs`, `kubectl create job run-now --from=cronjob/report`, `kubectl describe cronjob report`],
+    yamlExample: `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: report
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: report
+              image: busybox:1.36`,
+    verification: {
+      instruction: `创建名为 report 的 CronJob`,
+      verify: (resources) =>
+        resources.some(
+          (resource): resource is CronJob =>
+            resource.kind === 'CronJob' && resource.metadata.name === 'report'
+        ),
+    },
+    quiz: [{
+      question: `concurrencyPolicy=Forbid 的含义是？`,
+      options: [`删除旧 Job`, `已有 Job 运行时跳过新触发`, `始终并行`, `暂停 CronJob`],
+      correctIndex: 1,
+      explanation: `Forbid 不允许同一个 CronJob 的多个 Job 重叠运行。`,
+    }],
+    commonMistakes: [`误以为 CronJob 自己直接运行容器；实际是 CronJob 创建 Job，Job 再创建 Pod`],
+    summary: `CronJob 把时间计划、并发控制和历史保留叠加在 Job 之上。`,
   },
 ]

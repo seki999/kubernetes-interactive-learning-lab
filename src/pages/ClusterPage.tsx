@@ -37,6 +37,12 @@ function getStatusSummary(resource: KubernetesResource): string {
       return resource.status.phase
     case 'PersistentVolume':
       return resource.status.phase
+    case 'Job':
+      return `${resource.status.condition ?? 'Running'} · ${resource.status.succeeded}/${resource.spec.completions ?? 1}`
+    case 'CronJob':
+      return resource.spec.suspend
+        ? 'Suspended'
+        : `${resource.status.active.length} Active`
     default:
       return '-'
   }

@@ -26,6 +26,7 @@ import type {
   Pod,
   Secret,
   Service,
+  Job,
 } from '@/types/k8s'
 import type { Fault } from '@/types/fault'
 import { seedBasicCluster } from '../clusterSeedHelpers'
@@ -732,6 +733,55 @@ export const FAULTS: Fault[] = [
           },
         },
       }))
+    },
+  },
+  {
+    id: 'job-backoff-exhausted',
+    title: `Job 重试耗尽`,
+    description: `Job 使用不存在的镜像，工作 Pod 连续失败并超过 backoffLimit。`,
+    visualHint: `Job 详情中的 failed 递增，最终 Condition 变为 Failed；拓扑图显示 Job 到失败 Pod 的关系。`,
+    troubleshooting: [
+      `执行 kubectl describe job broken-batch 查看 failed 与 Events`,
+      `执行 kubectl get pods 查看 Job 创建的失败 Pod`,
+      `检查 spec.template.spec.containers.image`,
+    ],
+    fixAdvice: [`删除失败 Job，修正镜像后重新创建`],
+    interactive: true,
+    inject: () => {
+      seedBasicCluster(1)
+      createResource<Job>({
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: { uid: '', name: 'broken-batch', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        spec: {
+          completions: 1,
+          parallelism: 1,
+          backoffLimit: 1,
+          template: { spec: { containers: [{ name: 'worker', image: 'busybox:not-exist' }] } },
+        },
+        status: { active: 0, succeeded: 0, failed: 0, condition: 'Running' },
+      })
+    },
+    isActive: (resources) => {
+      const job = resources.find(
+        (resource): resource is Job =>
+          resource.kind === 'Job' && resource.metadata.name === 'broken-batch'
+      )
+      return job?.spec.template.spec.containers[0]?.image.includes('not-exist') ?? false
+    },
+    fix: () => {
+      if (getResource('Job', 'broken-batch', 'default')) {
+        deleteResource('Job', 'broken-batch', 'default')
+      }
+      createResource<Job>({
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: { uid: '', name: 'broken-batch', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        spec: {
+          template: { spec: { containers: [{ name: 'worker', image: 'busybox:1.36' }] } },
+        },
+        status: { active: 0, succeeded: 0, failed: 0, condition: 'Running' },
+      })
     },
   },
 ]

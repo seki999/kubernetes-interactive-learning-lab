@@ -18,7 +18,7 @@ let sequence = 0
 export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
   sequence += 1
   const stepId = `${event.type}-${sequence}`
-  const { apiServer, etcd, scheduler } = CONTROL_PLANE_NODE_IDS
+  const { apiServer, etcd, scheduler, controllerManager } = CONTROL_PLANE_NODE_IDS
 
   switch (event.type) {
     case 'RESOURCE_CREATED': {
@@ -77,6 +77,45 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
         nodeIds: [podId],
         edgeIds: [],
         explanation: `Pod ${event.payload.podName} 已就绪（Running）`,
+      }
+    }
+    case 'JOB_POD_CREATED': {
+      const jobId = buildResourceKey('Job', event.payload.jobName, event.payload.namespace)
+      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      return {
+        id: stepId,
+        nodeIds: [controllerManager, jobId, podId],
+        edgeIds: [`e-${jobId}->${podId}`],
+        explanation: `Job Controller 为 ${event.payload.jobName} 创建工作 Pod ${event.payload.podName}`,
+      }
+    }
+    case 'JOB_COMPLETED':
+    case 'JOB_FAILED': {
+      const jobId = buildResourceKey('Job', event.payload.jobName, event.payload.namespace)
+      return {
+        id: stepId,
+        nodeIds: [controllerManager, jobId],
+        edgeIds: [],
+        explanation:
+          event.type === 'JOB_COMPLETED'
+            ? `Job ${event.payload.jobName} 已完成：成功 ${event.payload.succeeded}`
+            : `Job ${event.payload.jobName} 已失败：失败 ${event.payload.failed}`,
+      }
+    }
+    case 'CRONJOB_TRIGGERED': {
+      const cronJobId = buildResourceKey(
+        'CronJob',
+        event.payload.cronJobName,
+        event.payload.namespace
+      )
+      const jobId = buildResourceKey('Job', event.payload.jobName, event.payload.namespace)
+      return {
+        id: stepId,
+        nodeIds: [controllerManager, cronJobId, jobId],
+        edgeIds: [`e-${cronJobId}->${jobId}`],
+        explanation: `CronJob ${event.payload.cronJobName} ${
+          event.payload.source === 'manual' ? '被手动触发' : '到达计划时间'
+        }，创建 Job ${event.payload.jobName}`,
       }
     }
     case 'POD_IMAGE_PULL_FAILED': {

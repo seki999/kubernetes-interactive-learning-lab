@@ -15,6 +15,8 @@ import type {
   ReplicaSet,
   Secret,
   Service,
+  Job,
+  CronJob,
 } from '@/types/k8s'
 
 export interface TopologyGraph {
@@ -92,6 +94,12 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
   const pvs = resources.filter(
     (resource): resource is PersistentVolume => resource.kind === 'PersistentVolume'
   )
+  const jobs = resources.filter(
+    (resource): resource is Job => resource.kind === 'Job'
+  )
+  const cronJobs = resources.filter(
+    (resource): resource is CronJob => resource.kind === 'CronJob'
+  )
   const configLikeResources: (ConfigMap | Secret | PersistentVolumeClaim)[] = [
     ...configMaps,
     ...secrets,
@@ -127,6 +135,43 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
       data: { label: `Deployment\n${deployment.metadata.name}` },
       style: nodeBoxStyle('#dbeafe', '#2563eb'),
     })
+  })
+
+  cronJobs.forEach((cronJob, index) => {
+    nodes.push({
+      id: resourceKeyOf(cronJob),
+      position: { x: 40, y: 700 + index * 110 },
+      data: {
+        label: `CronJob\n${cronJob.metadata.name}\n${cronJob.spec.schedule}`,
+      },
+      style: nodeBoxStyle('#f3e8ff', '#7c3aed'),
+    })
+  })
+
+  jobs.forEach((job, index) => {
+    const jobId = resourceKeyOf(job)
+    nodes.push({
+      id: jobId,
+      position: { x: 280, y: 700 + index * 110 },
+      data: {
+        label: `Job\n${job.metadata.name}\n${job.status.condition ?? 'Running'} ${job.status.succeeded}/${job.spec.completions ?? 1}`,
+      },
+      style:
+        job.status.condition === 'Failed'
+          ? nodeBoxStyle('#fee2e2', '#dc2626')
+          : nodeBoxStyle('#ede9fe', '#8b5cf6'),
+    })
+    const owner = job.metadata.ownerReferences?.find(
+      (reference) => reference.kind === 'CronJob'
+    )
+    const cronJob = owner
+      ? cronJobs.find(
+          (candidate) =>
+            candidate.metadata.uid === owner.uid ||
+            candidate.metadata.name === owner.name
+        )
+      : undefined
+    if (cronJob) edges.push(edge(resourceKeyOf(cronJob), jobId))
   })
 
   replicaSets.forEach((replicaSet, index) => {
@@ -199,6 +244,9 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
     const owner = pod.metadata.ownerReferences?.find(
       (reference) => reference.kind === 'ReplicaSet'
     )
+    const jobOwner = pod.metadata.ownerReferences?.find(
+      (reference) => reference.kind === 'Job'
+    )
     const replicaSet = owner
       ? replicaSets.find(
           (candidate) =>
@@ -210,6 +258,14 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
     if (replicaSet) {
       edges.push(edge(resourceKeyOf(replicaSet), podId))
     }
+    const job = jobOwner
+      ? jobs.find(
+          (candidate) =>
+            candidate.metadata.uid === jobOwner.uid ||
+            candidate.metadata.name === jobOwner.name
+        )
+      : undefined
+    if (job) edges.push(edge(resourceKeyOf(job), podId))
     if (revision) {
       const node = nodes.find((candidate) => candidate.id === podId)
       if (node) {
@@ -316,6 +372,8 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
           resource.kind === 'ConfigMap' ||
           resource.kind === 'Secret' ||
           resource.kind === 'PersistentVolumeClaim' ||
+          resource.kind === 'Job' ||
+          resource.kind === 'CronJob' ||
           (resource.kind === 'Pod' && !resource.metadata.ownerReferences?.length))
     )
     topLevelResidents.forEach((resource) => {

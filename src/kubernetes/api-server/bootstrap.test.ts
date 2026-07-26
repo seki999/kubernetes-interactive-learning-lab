@@ -29,7 +29,7 @@ describe('完整示例集群与从零学习模式', () => {
     await vi.advanceTimersByTimeAsync(500)
 
     expect(result?.errors).toEqual([])
-    expect(result?.appliedNames).toHaveLength(10)
+    expect(result?.appliedNames).toHaveLength(12)
     expect(useYamlEditorStore.getState().content).toBe(COMPLETE_CLUSTER_YAML)
 
     const resources = listAllResources()
@@ -50,6 +50,8 @@ describe('完整示例集群与从零学习模式', () => {
       'Secret',
       'PersistentVolumeClaim',
       'PersistentVolume',
+      'Job',
+      'CronJob',
     ]) {
       expect(labels.some((label) => label.startsWith(expectedKind))).toBe(true)
     }

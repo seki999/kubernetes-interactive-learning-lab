@@ -23,11 +23,11 @@ async function settle(ms = KUBELET_RUNNING_DELAY_MS + 50) {
 }
 
 describe('实验数据完整性', () => {
-  it('恰好包含 25 个实验，id 和 index 均唯一且覆盖 1-25', () => {
-    expect(LABS).toHaveLength(25)
-    expect(new Set(LABS.map((lab) => lab.id)).size).toBe(25)
+  it('恰好包含 27 个实验，id 和 index 均唯一且覆盖 1-27', () => {
+    expect(LABS).toHaveLength(27)
+    expect(new Set(LABS.map((lab) => lab.id)).size).toBe(27)
     const indexes = LABS.map((lab) => lab.index).sort((a, b) => a - b)
-    expect(indexes).toEqual(Array.from({ length: 25 }, (_, i) => i + 1))
+    expect(indexes).toEqual(Array.from({ length: 27 }, (_, i) => i + 1))
   })
 
   it('每个实验都包含最低限度的完整内容', () => {

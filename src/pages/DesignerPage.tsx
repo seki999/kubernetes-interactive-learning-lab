@@ -32,6 +32,8 @@ const PALETTE_ITEMS: PaletteEntry[] = [
   { kind: 'ConfigMap', label: 'ConfigMap' },
   { kind: 'Secret', label: 'Secret' },
   { kind: 'PersistentVolumeClaim', label: 'PVC' },
+  { kind: 'Job', label: 'Job' },
+  { kind: 'CronJob', label: 'CronJob' },
 ]
 
 /** 每种资源类型在画布上默认占据的横向"泳道"，还没有保存过位置的节点会按这个网格排开。 */
@@ -44,6 +46,8 @@ const KIND_LANE: Partial<Record<ResourceKind, number>> = {
   ConfigMap: 5,
   Secret: 6,
   PersistentVolumeClaim: 7,
+  Job: 8,
+  CronJob: 9,
 }
 
 function gridPosition(kind: ResourceKind, index: number) {

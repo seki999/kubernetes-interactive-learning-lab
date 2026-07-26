@@ -25,6 +25,20 @@ function eventReference(event: DomainEvent): ResourceReference | undefined {
       namespace: payload.namespace,
     }
   }
+  if ('cronJobName' in payload) {
+    return {
+      kind: 'CronJob',
+      name: payload.cronJobName,
+      namespace: payload.namespace,
+    }
+  }
+  if ('jobName' in payload) {
+    return {
+      kind: 'Job',
+      name: payload.jobName,
+      namespace: payload.namespace,
+    }
+  }
   if ('name' in payload) {
     return {
       kind: event.type.startsWith('DEPLOYMENT_') ? 'Deployment' : 'Service',
@@ -51,6 +65,8 @@ function componentFor(event: DomainEvent): TraceComponent {
   if (event.type.startsWith('NODE_') || event.type === 'POD_RESCHEDULED') {
     return 'node-controller'
   }
+  if (event.type.startsWith('JOB_')) return 'job-controller'
+  if (event.type.startsWith('CRONJOB_')) return 'cronjob-controller'
   return 'api-server'
 }
 

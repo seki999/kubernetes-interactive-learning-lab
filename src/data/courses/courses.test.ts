@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { COURSES } from './courses'
 
 describe('课程数据', () => {
-  it('恰好包含 30 节课程，id 和 index 均唯一且覆盖 1-30', () => {
-    expect(COURSES).toHaveLength(30)
-    expect(new Set(COURSES.map((course) => course.id)).size).toBe(30)
+  it('恰好包含 32 节课程，id 和 index 均唯一且覆盖 1-32', () => {
+    expect(COURSES).toHaveLength(32)
+    expect(new Set(COURSES.map((course) => course.id)).size).toBe(32)
     const indexes = COURSES.map((course) => course.index).sort((a, b) => a - b)
-    expect(indexes).toEqual(Array.from({ length: 30 }, (_, i) => i + 1))
+    expect(indexes).toEqual(Array.from({ length: 32 }, (_, i) => i + 1))
   })
 
   it('每节课都包含最低限度的完整内容（不是占位数据）', () => {

@@ -6,7 +6,7 @@ import {
 import { formatTable } from '@/terminal/formatter/table'
 import { parseArgs, resolveNamespace } from '@/terminal/parser/parseArgs'
 import { fail, ok, type CommandOutput } from './types'
-import type { Node, Pod } from '@/types/k8s'
+import type { Job, Node, Pod } from '@/types/k8s'
 
 /**
  * 模拟日志：浏览器里没有真实容器，日志内容是根据 Pod 当前状态生成的固定文案，
@@ -15,7 +15,23 @@ import type { Node, Pod } from '@/types/k8s'
  */
 export function runLogs(argv: string[]): CommandOutput {
   const { positional, flags } = parseArgs(argv)
-  const [podName] = positional
+  const [target] = positional
+  let podName = target
+  if (target?.startsWith('job/')) {
+    const jobName = target.slice('job/'.length)
+    const namespace = resolveNamespace(flags)
+    const job = getResource<Job>('Job', jobName, namespace)
+    if (!job) {
+      return fail([`Error from server (NotFound): jobs "${jobName}" not found`])
+    }
+    const jobPod = listResources<Pod>('Pod', namespace).find((pod) =>
+      pod.metadata.ownerReferences?.some(
+        (reference) => reference.kind === 'Job' && reference.uid === job.metadata.uid
+      )
+    )
+    if (!jobPod) return fail([`Job "${jobName}" 尚未创建工作 Pod`])
+    podName = jobPod.metadata.name
+  }
   if (!podName) {
     return fail(['error: 请指定 Pod 名称，例如 kubectl logs web-abc12'])
   }

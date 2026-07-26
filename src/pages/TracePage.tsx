@@ -18,6 +18,8 @@ const COMPONENTS: TraceComponent[] = [
   'endpoint-controller',
   'pvc-controller',
   'node-controller',
+  'job-controller',
+  'cronjob-controller',
 ]
 
 function duration(startedAt?: number, finishedAt?: number): string {

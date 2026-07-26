@@ -57,6 +57,8 @@ const RESOURCE_ROWS: [string, string, string, boolean][] = [
   ['secrets', '', 'v1', true],
   ['persistentvolumeclaims', 'pvc', 'v1', true],
   ['persistentvolumes', 'pv', 'v1', false],
+  ['jobs', '', 'batch/v1', true],
+  ['cronjobs', 'cj', 'batch/v1', true],
 ]
 
 export function runApiResources(): CommandOutput {
@@ -88,6 +90,8 @@ const EXPLAIN_TEXT: Record<string, string> = {
   Secret: 'Secret 用于保存密码、密钥等敏感数据，界面上会对内容脱敏展示。',
   PersistentVolumeClaim:
     'PersistentVolumeClaim（PVC）是用户对存储资源的申请，会和 PersistentVolume 绑定。',
+  Job: 'Job 负责运行一次性批处理 Pod，直到达到 completions 或超过 backoffLimit。',
+  CronJob: 'CronJob 根据 schedule 定期创建 Job，并控制并发策略和历史保留。',
 }
 
 export function runExplain(argv: string[]): CommandOutput {

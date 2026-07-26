@@ -62,6 +62,20 @@ export function applyDefaultStatus(resource: KubernetesResource): void {
     case 'PersistentVolume':
       resource.status = { phase: 'Available' }
       return
+    case 'Job':
+      resource.status = {
+        active: 0,
+        succeeded: 0,
+        failed: 0,
+        condition: 'Running',
+      }
+      return
+    case 'CronJob':
+      resource.status = {
+        active: [],
+        simulatedTime: new Date().toISOString(),
+      }
+      return
     default:
       // ConfigMap / Secret 本来就没有 status 字段（和真实 Kubernetes 一致），
       // Endpoints 完全由 Service 控制器自动生成，用户不会手写，不需要默认值。

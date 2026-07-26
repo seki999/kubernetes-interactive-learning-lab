@@ -33,7 +33,7 @@ export interface CourseVerification {
 
 export interface Course {
   id: string
-  /** 对应需求文档第八节课程列表中的序号（1-30）。 */
+  /** 课程中心展示序号。 */
   index: number
   title: string
   objectives: string[]

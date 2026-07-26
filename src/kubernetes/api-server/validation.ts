@@ -77,5 +77,36 @@ export function validateResource(resource: KubernetesResource): string[] {
     })
   }
 
+  if (resource.kind === 'Job') {
+    if (!resource.spec.template?.spec?.containers?.length) {
+      errors.push('Job 必须设置 spec.template.spec.containers')
+    }
+    resource.spec.template?.spec?.containers?.forEach((container, index) => {
+      if (!container.image) errors.push(`第 ${index + 1} 个容器缺少 image`)
+    })
+    for (const [name, value] of [
+      ['completions', resource.spec.completions],
+      ['parallelism', resource.spec.parallelism],
+      ['backoffLimit', resource.spec.backoffLimit],
+    ] as const) {
+      if (value !== undefined && (!Number.isInteger(value) || value < 0)) {
+        errors.push(`${name} 必须是非负整数`)
+      }
+    }
+  }
+
+  if (resource.kind === 'CronJob') {
+    if (!resource.spec.schedule?.trim()) errors.push('CronJob 必须设置 spec.schedule')
+    if (!resource.spec.jobTemplate?.spec?.template?.spec?.containers?.length) {
+      errors.push('CronJob 必须设置 spec.jobTemplate.spec.template.spec.containers')
+    }
+    if (
+      resource.spec.concurrencyPolicy &&
+      !['Allow', 'Forbid', 'Replace'].includes(resource.spec.concurrencyPolicy)
+    ) {
+      errors.push('concurrencyPolicy 只能是 Allow、Forbid 或 Replace')
+    }
+  }
+
   return errors
 }

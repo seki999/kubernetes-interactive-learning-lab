@@ -95,6 +95,26 @@ export interface PodRescheduledPayload {
   fromNodeName: string
 }
 
+export interface JobPodCreatedPayload {
+  jobName: string
+  podName: string
+  namespace?: string
+}
+
+export interface JobFinishedPayload {
+  jobName: string
+  namespace?: string
+  succeeded: number
+  failed: number
+}
+
+export interface CronJobTriggeredPayload {
+  cronJobName: string
+  jobName: string
+  namespace?: string
+  source: 'manual' | 'schedule'
+}
+
 export type DomainEvent =
   | { type: 'RESOURCE_CREATED'; payload: ResourceLifecyclePayload }
   | { type: 'RESOURCE_DELETED'; payload: ResourceLifecyclePayload }
@@ -115,6 +135,10 @@ export type DomainEvent =
   | { type: 'PVC_BOUND'; payload: PvcBoundPayload }
   | { type: 'NODE_NOT_READY'; payload: NodeNotReadyPayload }
   | { type: 'POD_RESCHEDULED'; payload: PodRescheduledPayload }
+  | { type: 'JOB_POD_CREATED'; payload: JobPodCreatedPayload }
+  | { type: 'JOB_COMPLETED'; payload: JobFinishedPayload }
+  | { type: 'JOB_FAILED'; payload: JobFinishedPayload }
+  | { type: 'CRONJOB_TRIGGERED'; payload: CronJobTriggeredPayload }
 
 export type DomainEventType = DomainEvent['type']
 

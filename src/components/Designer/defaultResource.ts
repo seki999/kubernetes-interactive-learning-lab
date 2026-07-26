@@ -9,6 +9,8 @@ import type {
   ResourceKind,
   Secret,
   Service,
+  Job,
+  CronJob,
 } from '@/types/k8s'
 
 function randomSuffix(): string {
@@ -126,6 +128,37 @@ export function buildDefaultResource(kind: ResourceKind): KubernetesResource {
         spec: { accessModes: ['ReadWriteOnce'], storageRequest: '1Gi' },
         status: { phase: 'Pending' },
       } satisfies PersistentVolumeClaim
+
+    case 'Job':
+      return {
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: { ...baseMeta, name: `job-${suffix}`, namespace: 'default' },
+        spec: {
+          completions: 1,
+          parallelism: 1,
+          backoffLimit: 3,
+          template: { spec: { containers: [{ name: 'worker', image: 'busybox:1.36' }] } },
+        },
+        status: { active: 0, succeeded: 0, failed: 0, condition: 'Running' },
+      } satisfies Job
+
+    case 'CronJob':
+      return {
+        apiVersion: 'batch/v1',
+        kind: 'CronJob',
+        metadata: { ...baseMeta, name: `cron-${suffix}`, namespace: 'default' },
+        spec: {
+          schedule: '*/5 * * * *',
+          concurrencyPolicy: 'Forbid',
+          jobTemplate: {
+            spec: {
+              template: { spec: { containers: [{ name: 'worker', image: 'busybox:1.36' }] } },
+            },
+          },
+        },
+        status: { active: [], simulatedTime: new Date().toISOString() },
+      } satisfies CronJob
 
     default:
       throw new Error(`设计器暂不支持创建 ${kind}`)

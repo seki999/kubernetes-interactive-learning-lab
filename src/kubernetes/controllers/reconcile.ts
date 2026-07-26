@@ -3,6 +3,8 @@ import { reconcileReplicaSet } from './replicaSetController'
 import { reconcileService } from './endpointController'
 import { reconcilePvc, reconcilePv } from './pvcController'
 import { reconcileNode } from './nodeController'
+import { reconcileJob } from './jobController'
+import { reconcileCronJob } from './cronJobController'
 import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
 import type {
   Deployment,
@@ -12,6 +14,8 @@ import type {
   ReplicaSet,
   ResourceKind,
   Service,
+  Job,
+  CronJob,
 } from '@/types/k8s'
 
 /**
@@ -23,7 +27,7 @@ import type {
  *
  * 当前接入的控制器：Deployment、ReplicaSet、Service（Endpoint 控制器）、
  * PersistentVolumeClaim/PersistentVolume（绑定控制器）、Node（故障重新调度）、
- * 以及 Pod 创建后触发的 Scheduler。StatefulSet / DaemonSet / Job / CronJob /
+ * 以及 Pod 创建后触发的 Scheduler、Job、CronJob。StatefulSet / DaemonSet /
  * HPA 控制器尚未实现，会在后续阶段补充。
  */
 export function runControllersFor(
@@ -51,6 +55,12 @@ export function runControllersFor(
       break
     case 'Node':
       reconcileNode(resource as Node)
+      break
+    case 'Job':
+      reconcileJob(resource as Job)
+      break
+    case 'CronJob':
+      reconcileCronJob(resource as CronJob)
       break
     default:
       break

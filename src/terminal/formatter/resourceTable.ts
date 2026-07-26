@@ -11,6 +11,8 @@ import type {
   ResourceKind,
   Secret,
   Service,
+  Job,
+  CronJob,
 } from '@/types/k8s'
 
 /**
@@ -102,6 +104,41 @@ function buildResourceRows(
           String(rs.status.replicas),
           String(rs.status.readyReplicas),
           formatAge(rs.metadata.creationTimestamp),
+        ])
+      )
+      return [headers, rows]
+    }
+
+    case 'Job': {
+      const jobs = items as Job[]
+      const headers = withNamespace(['NAME', 'STATUS', 'COMPLETIONS', 'DURATION', 'AGE'])
+      const rows = jobs.map((job) =>
+        withNamespaceRow(job.metadata.namespace, [
+          job.metadata.name,
+          job.status.condition ?? 'Running',
+          `${job.status.succeeded}/${job.spec.completions ?? 1}`,
+          job.status.completionTime && job.status.startTime
+            ? `${Math.max(0, Math.round((Date.parse(job.status.completionTime) - Date.parse(job.status.startTime)) / 1000))}s`
+            : '-',
+          formatAge(job.metadata.creationTimestamp),
+        ])
+      )
+      return [headers, rows]
+    }
+
+    case 'CronJob': {
+      const cronJobs = items as CronJob[]
+      const headers = withNamespace(['NAME', 'SCHEDULE', 'SUSPEND', 'ACTIVE', 'LAST SCHEDULE', 'AGE'])
+      const rows = cronJobs.map((cronJob) =>
+        withNamespaceRow(cronJob.metadata.namespace, [
+          cronJob.metadata.name,
+          cronJob.spec.schedule,
+          String(cronJob.spec.suspend ?? false),
+          String(cronJob.status.active.length),
+          cronJob.status.lastScheduleTime
+            ? formatAge(cronJob.status.lastScheduleTime)
+            : '<none>',
+          formatAge(cronJob.metadata.creationTimestamp),
         ])
       )
       return [headers, rows]

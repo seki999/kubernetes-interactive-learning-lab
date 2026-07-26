@@ -12,6 +12,8 @@ export type TraceComponent =
   | 'endpoint-controller'
   | 'pvc-controller'
   | 'node-controller'
+  | 'job-controller'
+  | 'cronjob-controller'
 
 export interface ResourceReference {
   kind: string

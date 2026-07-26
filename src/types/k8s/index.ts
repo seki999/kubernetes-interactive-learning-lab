@@ -7,6 +7,7 @@ import type { Namespace } from './namespace'
 import type { ConfigMap } from './configmap'
 import type { Secret } from './secret'
 import type { PersistentVolumeClaim, PersistentVolume } from './pvc'
+import type { Job, CronJob } from './job'
 
 export * from './meta'
 export * from './pod'
@@ -19,6 +20,7 @@ export * from './configmap'
 export * from './secret'
 export * from './pvc'
 export * from './event'
+export * from './job'
 
 /**
  * 当前虚拟集群支持的资源种类。
@@ -39,6 +41,8 @@ export type ResourceKind =
   | 'Secret'
   | 'PersistentVolumeClaim'
   | 'PersistentVolume'
+  | 'Job'
+  | 'CronJob'
 
 export type KubernetesResource =
   | Pod
@@ -52,6 +56,8 @@ export type KubernetesResource =
   | Secret
   | PersistentVolumeClaim
   | PersistentVolume
+  | Job
+  | CronJob
 
 /** 集群级资源（没有 namespace 字段）。其余资源均为命名空间级资源。 */
 export const CLUSTER_SCOPED_KINDS: ReadonlySet<ResourceKind> = new Set([
@@ -76,4 +82,6 @@ export const ALL_RESOURCE_KINDS: ResourceKind[] = [
   'Secret',
   'PersistentVolumeClaim',
   'PersistentVolume',
+  'Job',
+  'CronJob',
 ]

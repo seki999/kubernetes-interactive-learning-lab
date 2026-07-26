@@ -25,6 +25,8 @@ import type {
   Pod,
   Secret,
   Service,
+  Job,
+  CronJob,
 } from '@/types/k8s'
 import type { Lab } from '@/types/lab'
 import { seedBasicCluster } from '../clusterSeedHelpers'
@@ -1168,6 +1170,85 @@ spec:
   ports:
     - port: 80
       targetPort: 80`,
+    scoreOnSuccess: 100,
+    interactive: true,
+  },
+  {
+    id: 'run-parallel-job',
+    index: 26,
+    title: `运行并行 Job`,
+    background: `数据团队需要把三个独立分片处理完成，并允许同时运行两个工作 Pod。`,
+    goal: `创建 batch-lab Job，设置 completions=3、parallelism=2，并等待 Job Complete。`,
+    hints: [`Job 的 Pod 完成后会进入 Succeeded`, `使用 kubectl get jobs 和 kubectl describe job batch-lab 观察计数`],
+    initialSetup: () => seedBasicCluster(2),
+    check: (resources) => {
+      const job = resources.find(
+        (resource): resource is Job =>
+          resource.kind === 'Job' && resource.metadata.name === 'batch-lab'
+      )
+      if (!job) return { passed: false, message: `还没有找到 batch-lab Job。` }
+      if (job.spec.completions !== 3 || job.spec.parallelism !== 2) {
+        return { passed: false, message: `请设置 completions=3、parallelism=2。` }
+      }
+      return job.status.condition === 'Complete'
+        ? { passed: true, message: `三个分片已经全部完成！` }
+        : { passed: false, message: `Job 当前是 ${job.status.condition}，请等待工作 Pod 完成。` }
+    },
+    referenceYaml: `apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-lab
+spec:
+  completions: 3
+  parallelism: 2
+  backoffLimit: 2
+  template:
+    spec:
+      containers:
+        - name: worker
+          image: busybox:1.36`,
+    scoreOnSuccess: 100,
+    interactive: true,
+  },
+  {
+    id: 'trigger-cronjob',
+    index: 27,
+    title: `创建并触发 CronJob`,
+    background: `报表任务需要每 5 分钟执行一次，同时禁止上一次未完成时再启动一份。`,
+    goal: `创建 report-cron，schedule 为 */5 * * * *，concurrencyPolicy=Forbid，并至少触发一个 Job。`,
+    hints: [`在 CronJob 详情里可以手动触发或推进模拟时间`, `也可以执行 kubectl create job run-now --from=cronjob/report-cron`],
+    initialSetup: () => seedBasicCluster(1),
+    check: (resources) => {
+      const cronJob = resources.find(
+        (resource): resource is CronJob =>
+          resource.kind === 'CronJob' && resource.metadata.name === 'report-cron'
+      )
+      if (!cronJob) return { passed: false, message: `还没有找到 report-cron。` }
+      const hasJob = resources.some(
+        (resource): resource is Job =>
+          resource.kind === 'Job' &&
+          resource.metadata.ownerReferences?.some(
+            (reference) => reference.kind === 'CronJob' && reference.uid === cronJob.metadata.uid
+          ) === true
+      )
+      return hasJob
+        ? { passed: true, message: `CronJob 已成功创建 Job！` }
+        : { passed: false, message: `CronJob 已创建，但还没有触发 Job。` }
+    },
+    referenceYaml: `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: report-cron
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: report
+              image: busybox:1.36`,
     scoreOnSuccess: 100,
     interactive: true,
   },

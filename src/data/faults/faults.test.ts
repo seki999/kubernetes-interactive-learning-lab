@@ -12,9 +12,9 @@ async function settle(ms = KUBELET_RUNNING_DELAY_MS + 50) {
 }
 
 describe('故障注入数据完整性', () => {
-  it('恰好包含 19 个故障，id 唯一', () => {
-    expect(FAULTS).toHaveLength(19)
-    expect(new Set(FAULTS.map((fault) => fault.id)).size).toBe(19)
+  it('恰好包含 20 个故障，id 唯一', () => {
+    expect(FAULTS).toHaveLength(20)
+    expect(new Set(FAULTS.map((fault) => fault.id)).size).toBe(20)
   })
 
   it('每个故障都包含最低限度的完整内容', () => {
@@ -54,8 +54,8 @@ describe('可交互故障：注入后生效、修复后失效', () => {
 
   const interactiveFaults = FAULTS.filter((fault) => fault.interactive)
 
-  it('覆盖了预期的 14 个可交互故障', () => {
-    expect(interactiveFaults).toHaveLength(14)
+  it('覆盖了预期的 15 个可交互故障', () => {
+    expect(interactiveFaults).toHaveLength(15)
   })
 
   it.each(interactiveFaults.map((fault) => [fault.title, fault] as const))(

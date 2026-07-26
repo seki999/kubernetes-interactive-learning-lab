@@ -2,6 +2,8 @@ import { createResource } from '@/kubernetes/api-server/apiServer'
 import { parseArgs, resolveNamespace, toStringFlag } from '@/terminal/parser/parseArgs'
 import { fail, formatApiServerError, ok, type CommandOutput } from './types'
 import type { Deployment, Namespace } from '@/types/k8s'
+import type { Job } from '@/types/k8s'
+import { triggerCronJob } from '@/kubernetes/controllers/cronJobController'
 
 export function runCreate(argv: string[]): CommandOutput {
   const { positional, flags } = parseArgs(argv)
@@ -65,6 +67,50 @@ export function runCreate(argv: string[]): CommandOutput {
         },
       })
       return ok([`deployment.apps/${name} created`])
+    } catch (error) {
+      return fail([formatApiServerError(error)])
+    }
+  }
+
+  if (subcommand === 'job') {
+    if (!name) {
+      return fail(['error: 请指定 Job 名称，例如 kubectl create job report --image=busybox'])
+    }
+    const namespace = resolveNamespace(flags)
+    const from = toStringFlag(flags.from)
+    if (from) {
+      const match = /^cronjob\/(.+)$/.exec(from)
+      if (!match) return fail(['error: --from 目前只支持 cronjob/<name>'])
+      try {
+        const job = triggerCronJob(match[1], namespace, 'manual', new Date(), name)
+        return job
+          ? ok([`job.batch/${name} created`])
+          : fail([`Error from server (NotFound): cronjobs "${match[1]}" not found`])
+      } catch (error) {
+        return fail([formatApiServerError(error)])
+      }
+    }
+    const image = toStringFlag(flags.image)
+    if (!image) {
+      return fail(['error: 请通过 --image 指定镜像，或使用 --from=cronjob/<name>'])
+    }
+    try {
+      createResource<Job>({
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: {
+          uid: '',
+          name,
+          namespace,
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
+        spec: {
+          template: { spec: { containers: [{ name, image }] } },
+        },
+        status: { active: 0, succeeded: 0, failed: 0, condition: 'Running' },
+      })
+      return ok([`job.batch/${name} created`])
     } catch (error) {
       return fail([formatApiServerError(error)])
     }

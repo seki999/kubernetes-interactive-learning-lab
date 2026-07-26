@@ -190,4 +190,30 @@ export const RESOURCE_CONCEPTS: Record<ResourceKind, ResourceConcept> = {
       { target: 'StorageClass', description: '标识存储类别，并支持动态制备' },
     ],
   },
+  Job: {
+    label: 'Job',
+    scope: '命名空间级',
+    role: '一次性批处理任务',
+    summary: '创建一个或多个 Pod，直到达到指定的成功完成次数。',
+    details:
+      'Job Controller 根据 completions、parallelism 和 backoffLimit 管理工作 Pod。Pod 成功后计入完成数；失败时按限制重试，最终进入 Complete 或 Failed。',
+    relationships: [
+      { target: 'Pod', description: '创建短生命周期工作 Pod 并统计成功、失败和重试' },
+      { target: 'CronJob', description: '可由 CronJob 按计划或手动创建' },
+      { target: 'Node / Scheduler', description: 'Job Pod 仍通过 Scheduler 选择 Node' },
+    ],
+  },
+  CronJob: {
+    label: 'CronJob',
+    scope: '命名空间级',
+    role: '定时批处理计划',
+    summary: '按照 Cron 表达式定期创建 Job，并管理并发与历史记录。',
+    details:
+      'CronJob 本身不运行容器，而是在匹配计划时间时创建 Job。suspend 可暂停计划触发，concurrencyPolicy 决定新旧 Job 是否允许并行。',
+    relationships: [
+      { target: 'Job', description: '到达计划时间或手动触发时创建 Job' },
+      { target: 'Pod', description: '通过 Job 间接创建实际执行任务的 Pod' },
+      { target: 'Events', description: '记录触发、跳过和历史清理结果' },
+    ],
+  },
 }

@@ -6,6 +6,11 @@ import { reconcileServicesForNamespace } from '@/kubernetes/controllers/endpoint
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import type { Deployment, Pod, ReplicaSet } from '@/types/k8s'
 import { recordTraceStep } from '@/simulation/trace/traceManager'
+import {
+  failJobPod,
+  finishJobPod,
+  JOB_COMPLETION_DELAY_MS,
+} from '@/kubernetes/controllers/jobController'
 
 // 虚拟 Kubelet：Pod 被 Scheduler 分配到节点之后，负责把它从 Pending
 // 推进到 Running（模拟拉取镜像、启动容器），或者在镜像非法时进入
@@ -115,6 +120,7 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
       status: 'failed',
       error: `镜像 ${invalidContainer.image} 拉取失败`,
     })
+    if (failJobPod(podName, namespace)) return
     continueDeploymentRollout(current, namespace)
     return
   }
@@ -156,6 +162,15 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
   })
   emitDomainEvent({ type: 'CONTAINER_STARTED', payload: { podName, namespace } })
   emitDomainEvent({ type: 'POD_READY', payload: { podName, namespace } })
+
+  if (
+    current.metadata.ownerReferences?.some((reference) => reference.kind === 'Job')
+  ) {
+    setTimeout(
+      () => finishJobPod(podName, namespace),
+      JOB_COMPLETION_DELAY_MS
+    )
+  }
 
   continueDeploymentRollout(current, namespace)
   // Pod 刚变为 Running/Ready，可能正好是某个 Service 一直在等待的后端，

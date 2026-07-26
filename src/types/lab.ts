@@ -15,7 +15,7 @@ export interface LabCheckResult {
 
 export interface Lab {
   id: string
-  /** 对应需求文档第九节实验列表中的序号（1-25）。 */
+  /** 实验中心展示序号。 */
   index: number
   title: string
   background: string

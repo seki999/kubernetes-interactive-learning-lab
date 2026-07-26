@@ -195,4 +195,38 @@ spec:
     - port: 80
       targetPort: 80
       protocol: TCP
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: initial-data-check
+  namespace: learning-lab
+spec:
+  completions: 2
+  parallelism: 1
+  backoffLimit: 2
+  template:
+    spec:
+      containers:
+        - name: checker
+          image: busybox:1.36
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: periodic-report
+  namespace: learning-lab
+spec:
+  schedule: "*/5 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: report
+              image: busybox:1.36
 `

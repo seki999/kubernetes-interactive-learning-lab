@@ -6,6 +6,8 @@ import { formatAge } from '@/terminal/formatter/table'
 import type { KubernetesResource, ResourceKind } from '@/types/k8s'
 import type { Pod } from '@/types/k8s'
 import { SchedulerExplanation } from './SchedulerExplanation'
+import { BatchResourceActions } from './BatchResourceActions'
+import type { CronJob } from '@/types/k8s'
 
 interface ResourceDetailPanelProps {
   resource: KubernetesResource
@@ -92,6 +94,7 @@ export function ResourceDetailPanel({ resource, onDeleted }: ResourceDetailPanel
 
       <div className="mt-2 min-h-0 flex-1 overflow-auto text-sm">
         {activeTab === 'info' && (
+          <>
           <dl className="space-y-1">
             <Row label="名称" value={resource.metadata.name} />
             <Row
@@ -115,6 +118,10 @@ export function ResourceDetailPanel({ resource, onDeleted }: ResourceDetailPanel
               }
             />
           </dl>
+          {resource.kind === 'CronJob' && (
+            <BatchResourceActions cronJob={resource as CronJob} />
+          )}
+          </>
         )}
 
         {activeTab === 'yaml' && (

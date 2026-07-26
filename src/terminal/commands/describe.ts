@@ -5,7 +5,7 @@ import { formatAge } from '@/terminal/formatter/table'
 import { parseArgs, resolveNamespace } from '@/terminal/parser/parseArgs'
 import { KIND_ALIASES } from './kindAliases'
 import { fail, ok, type CommandOutput } from './types'
-import type { Deployment, Endpoints, K8sEvent, Pod, Service } from '@/types/k8s'
+import type { CronJob, Deployment, Endpoints, Job, K8sEvent, Pod, Service } from '@/types/k8s'
 
 function describeEvents(
   kind: string,
@@ -123,6 +123,39 @@ function describeService(service: Service): string[] {
   return lines
 }
 
+function describeJob(job: Job): string[] {
+  return [
+    `Name:           ${job.metadata.name}`,
+    `Namespace:      ${job.metadata.namespace ?? '-'}`,
+    `Completions:    ${job.status.succeeded}/${job.spec.completions ?? 1}`,
+    `Parallelism:    ${job.spec.parallelism ?? 1}`,
+    `Backoff Limit:  ${job.spec.backoffLimit ?? 6}`,
+    `Active:         ${job.status.active}`,
+    `Succeeded:      ${job.status.succeeded}`,
+    `Failed:         ${job.status.failed}`,
+    `Condition:      ${job.status.condition ?? 'Running'}`,
+    '',
+    ...describeEvents('Job', job.metadata.name, job.metadata.namespace),
+  ]
+}
+
+function describeCronJob(cronJob: CronJob): string[] {
+  return [
+    `Name:                     ${cronJob.metadata.name}`,
+    `Namespace:                ${cronJob.metadata.namespace ?? '-'}`,
+    `Schedule:                 ${cronJob.spec.schedule}`,
+    `Suspend:                  ${cronJob.spec.suspend ?? false}`,
+    `Concurrency Policy:       ${cronJob.spec.concurrencyPolicy ?? 'Allow'}`,
+    `Successful History Limit: ${cronJob.spec.successfulJobsHistoryLimit ?? 3}`,
+    `Failed History Limit:     ${cronJob.spec.failedJobsHistoryLimit ?? 1}`,
+    `Active Jobs:              ${cronJob.status.active.join(', ') || '<none>'}`,
+    `Simulated Time:           ${cronJob.status.simulatedTime}`,
+    `Last Schedule Time:       ${cronJob.status.lastScheduleTime ?? '<none>'}`,
+    '',
+    ...describeEvents('CronJob', cronJob.metadata.name, cronJob.metadata.namespace),
+  ]
+}
+
 function formatLabels(labels: Record<string, string> | undefined): string {
   if (!labels || Object.keys(labels).length === 0) {
     return '<none>'
@@ -165,6 +198,10 @@ export function runDescribe(argv: string[]): CommandOutput {
       lines.push(...describeDeployment(resource as Deployment))
     } else if (resource!.kind === 'Service') {
       lines.push(...describeService(resource as Service))
+    } else if (resource!.kind === 'Job') {
+      lines.push(...describeJob(resource as Job))
+    } else if (resource!.kind === 'CronJob') {
+      lines.push(...describeCronJob(resource as CronJob))
     } else {
       // 其余资源类型暂时用通用的 YAML 展示代替专门的 describe 排版。
       lines.push(

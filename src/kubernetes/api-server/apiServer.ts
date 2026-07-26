@@ -42,6 +42,8 @@ const RESOURCE_PATHS: Record<ResourceKind, string> = {
   Secret: 'secrets',
   PersistentVolumeClaim: 'persistentvolumeclaims',
   PersistentVolume: 'persistentvolumes',
+  Job: 'jobs',
+  CronJob: 'cronjobs',
 }
 
 function apiUrl(resource: KubernetesResource): string {
