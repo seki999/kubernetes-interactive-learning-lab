@@ -4,18 +4,21 @@ import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { deleteResource } from '@/kubernetes/api-server/apiServer'
 import { formatAge } from '@/terminal/formatter/table'
 import type { KubernetesResource, ResourceKind } from '@/types/k8s'
+import type { Pod } from '@/types/k8s'
+import { SchedulerExplanation } from './SchedulerExplanation'
 
 interface ResourceDetailPanelProps {
   resource: KubernetesResource
   onDeleted: () => void
 }
 
-type TabKey = 'info' | 'yaml' | 'status' | 'events'
+type TabKey = 'info' | 'yaml' | 'status' | 'scheduler' | 'events'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'info', label: '基本信息' },
   { key: 'yaml', label: 'YAML' },
   { key: 'status', label: '状态' },
+  { key: 'scheduler', label: '调度决策' },
   { key: 'events', label: 'Events' },
 ]
 
@@ -71,7 +74,7 @@ export function ResourceDetailPanel({ resource, onDeleted }: ResourceDetailPanel
       </div>
 
       <div className="mt-2 flex gap-1 border-b border-slate-200 text-sm dark:border-slate-800">
-        {TABS.map((tab) => (
+        {TABS.filter((tab) => tab.key !== 'scheduler' || resource.kind === 'Pod').map((tab) => (
           <button
             key={tab.key}
             type="button"
@@ -124,6 +127,10 @@ export function ResourceDetailPanel({ resource, onDeleted }: ResourceDetailPanel
           <pre className="whitespace-pre-wrap rounded-md bg-slate-100 p-2 text-xs dark:bg-slate-900">
             {dump('status' in resource ? resource.status : {})}
           </pre>
+        )}
+
+        {activeTab === 'scheduler' && resource.kind === 'Pod' && (
+          <SchedulerExplanation decision={(resource as Pod).status.schedulingDecision} />
         )}
 
         {activeTab === 'events' &&

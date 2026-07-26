@@ -95,12 +95,70 @@ export interface NodeAffinity {
   }
 }
 
+export interface PodAffinityTerm {
+  labelSelector?: { matchLabels?: Record<string, string> }
+  topologyKey: string
+}
+
+export interface PodAffinity {
+  requiredDuringSchedulingIgnoredDuringExecution?: PodAffinityTerm[]
+}
+
+export interface Affinity {
+  nodeAffinity?: NodeAffinity
+  podAffinity?: PodAffinity
+  podAntiAffinity?: PodAffinity
+}
+
+export interface TopologySpreadConstraint {
+  maxSkew: number
+  topologyKey: string
+  whenUnsatisfiable: 'DoNotSchedule' | 'ScheduleAnyway'
+  labelSelector?: { matchLabels?: Record<string, string> }
+}
+
+export type SchedulerPlugin =
+  | 'NodeUnschedulable'
+  | 'NodeResourcesFit'
+  | 'NodeSelector'
+  | 'TaintToleration'
+  | 'NodeAffinity'
+  | 'PodAffinity'
+  | 'PodAntiAffinity'
+  | 'TopologySpread'
+
+export interface SchedulerCheck {
+  plugin: SchedulerPlugin
+  passed: boolean
+  explanation: string
+}
+
+export interface SchedulerNodeDecision {
+  nodeName: string
+  feasible: boolean
+  checks: SchedulerCheck[]
+  score?: number
+  scoreExplanation?: string
+  rejectionReasons: string[]
+}
+
+export interface SchedulerDecision {
+  id: string
+  createdAt: string
+  selectedNode?: string
+  summary: string
+  candidates: SchedulerNodeDecision[]
+}
+
 export interface PodSpec {
   containers: Container[]
   volumes?: Volume[]
   nodeSelector?: Record<string, string>
+  /** 兼容项目早期课程 YAML；新的标准写法应使用 affinity.nodeAffinity。 */
   nodeAffinity?: NodeAffinity
+  affinity?: Affinity
   tolerations?: Toleration[]
+  topologySpreadConstraints?: TopologySpreadConstraint[]
 }
 
 export interface ContainerStatus {
@@ -121,6 +179,8 @@ export interface PodStatus {
   /** 调度失败或容器异常时的中文原因说明，供 kubectl describe 和详情面板展示。 */
   reason?: string
   message?: string
+  /** 教学模拟保留最近一次 Scheduler Filter/Score 结果，供多个界面共享解释。 */
+  schedulingDecision?: SchedulerDecision
   startTime?: string
 }
 

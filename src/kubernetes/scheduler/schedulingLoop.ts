@@ -39,8 +39,7 @@ export function trySchedulePod(podName: string, namespace: string | undefined): 
     description: 'Scheduler 根据资源、标签、污点和亲和性过滤 Node',
     input: { candidates: nodes.map((node) => node.metadata.name) },
     output: {
-      failures: result.failureDetails,
-      feasibleNodes: result.nodeName ? [result.nodeName] : [],
+      candidates: result.decision.candidates,
     },
     status: result.scheduled ? 'success' : 'failed',
   })
@@ -50,7 +49,13 @@ export function trySchedulePod(podName: string, namespace: string | undefined): 
     action: 'SCORE_NODES',
     description: 'Scheduler 对可行 Node 进行教学级简化打分',
     output: result.nodeName
-      ? { selectedNode: result.nodeName, score: 100 }
+      ? {
+          selectedNode: result.nodeName,
+          score: result.decision.candidates.find(
+            (candidate) => candidate.nodeName === result.nodeName
+          )?.score,
+          decisionId: result.decision.id,
+        }
       : { selectedNode: null },
     status: result.scheduled ? 'success' : 'failed',
   })
@@ -67,17 +72,18 @@ export function trySchedulePod(podName: string, namespace: string | undefined): 
         phase: 'Pending',
         reason: 'FailedScheduling',
         message: reasonSummary,
+        schedulingDecision: result.decision,
       },
     }))
     emitEvent({
       involvedObject: { kind: 'Pod', name: podName, namespace },
       type: 'Warning',
       reason: 'FailedScheduling',
-      message: `调度失败：${reasonSummary}`,
+      message: result.decision.summary,
     })
     emitDomainEvent({
       type: 'POD_SCHEDULE_PENDING',
-      payload: { podName, namespace, reason: reasonSummary },
+      payload: { podName, namespace, reason: result.decision.summary },
     })
     return
   }
@@ -89,17 +95,23 @@ export function trySchedulePod(podName: string, namespace: string | undefined): 
       nodeName: result.nodeName,
       reason: undefined,
       message: undefined,
+      schedulingDecision: result.decision,
     },
   }))
   emitEvent({
     involvedObject: { kind: 'Pod', name: podName, namespace },
     type: 'Normal',
     reason: 'Scheduled',
-    message: `Pod 已成功调度到节点 ${result.nodeName}`,
+    message: result.decision.summary,
   })
   emitDomainEvent({
     type: 'POD_SCHEDULED',
-    payload: { podName, namespace, nodeName: result.nodeName },
+    payload: {
+      podName,
+      namespace,
+      nodeName: result.nodeName,
+      summary: result.decision.summary,
+    },
   })
   recordTraceStep({
     resource: pod,

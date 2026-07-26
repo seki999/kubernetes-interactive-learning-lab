@@ -19,6 +19,7 @@ export interface PodScheduledPayload {
   podName: string
   namespace?: string
   nodeName: string
+  summary?: string
 }
 
 export interface PodScheduleFailedPayload {

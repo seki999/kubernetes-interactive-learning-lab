@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { FAULTS } from '@/data/faults/faults'
 import { useEtcdStore } from '@/kubernetes/api-server/store'
 import type { Fault } from '@/types/fault'
+import type { Pod } from '@/types/k8s'
+import { SchedulerExplanation } from '@/components/SchedulerExplanation'
 
 /**
  * 故障实验室（对应需求文档第十节"故障注入模式"）。
@@ -51,6 +53,10 @@ export function FaultLabPage() {
             <FaultDetail
               fault={selectedFault}
               isActive={selectedFault.isActive(Object.values(resources))}
+              schedulingPod={Object.values(resources).find(
+                (resource): resource is Pod =>
+                  resource.kind === 'Pod' && Boolean(resource.status.schedulingDecision)
+              )}
             />
           )}
         </div>
@@ -59,7 +65,7 @@ export function FaultLabPage() {
   )
 }
 
-function FaultDetail({ fault, isActive }: { fault: Fault; isActive: boolean }) {
+function FaultDetail({ fault, isActive, schedulingPod }: { fault: Fault; isActive: boolean; schedulingPod?: Pod }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -106,6 +112,12 @@ function FaultDetail({ fault, isActive }: { fault: Fault; isActive: boolean }) {
           ))}
         </ul>
       </Section>
+
+      {schedulingPod && (
+        <Section title={`Scheduler 决策 · ${schedulingPod.metadata.name}`}>
+          <SchedulerExplanation decision={schedulingPod.status.schedulingDecision} />
+        </Section>
+      )}
 
       {fault.interactive && (
         <div className="flex gap-2">

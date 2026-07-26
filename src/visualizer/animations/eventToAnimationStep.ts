@@ -47,7 +47,9 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
         id: stepId,
         nodeIds: [scheduler, nodeId, podId],
         edgeIds: [`e-${nodeId}->${podId}`],
-        explanation: `Scheduler 把 Pod ${event.payload.podName} 调度到节点 ${event.payload.nodeName}`,
+        explanation:
+          event.payload.summary ??
+          `Scheduler 把 Pod ${event.payload.podName} 调度到节点 ${event.payload.nodeName}`,
       }
     }
     case 'IMAGE_PULL_STARTED': {

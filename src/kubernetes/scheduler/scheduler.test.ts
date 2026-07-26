@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectNodeForPod } from './scheduler'
+import { explainSchedulingDecision, selectNodeForPod } from './scheduler'
 import type { Node, Pod } from '@/types/k8s'
 
 function makeNode(overrides: Partial<Node> = {}): Node {
@@ -129,5 +129,105 @@ describe('selectNodeForPod', () => {
     })
     const result = selectNodeForPod(makePod(), [busyNode, idleNode], [existingPod])
     expect(result.nodeName).toBe('node-idle')
+  })
+
+  it('逐节点解释 NodeSelector、Taint/Toleration 和资源过滤结果', () => {
+    const node = makeNode({
+      metadata: { ...makeNode().metadata, labels: { disktype: 'hdd' } },
+      spec: { taints: [{ key: 'dedicated', value: 'gpu', effect: 'NoSchedule' }] },
+    })
+    const decision = explainSchedulingDecision(
+      makePod({ spec: { ...makePod().spec, nodeSelector: { disktype: 'ssd' } } }),
+      [node],
+      []
+    )
+    expect(decision.candidates[0].checks.find((check) => check.plugin === 'NodeSelector')?.passed).toBe(false)
+    expect(decision.candidates[0].checks.find((check) => check.plugin === 'TaintToleration')?.passed).toBe(false)
+    expect(decision.summary).toContain('调度失败')
+  })
+
+  it('支持标准 affinity.nodeAffinity YAML 并给出匹配解释', () => {
+    const node = makeNode({
+      metadata: { ...makeNode().metadata, labels: { zone: 'tokyo-a' } },
+    })
+    const pod = makePod({
+      spec: {
+        ...makePod().spec,
+        affinity: {
+          nodeAffinity: {
+            requiredDuringSchedulingIgnoredDuringExecution: {
+              nodeSelectorTerms: [{
+                matchExpressions: [{ key: 'zone', operator: 'In', values: ['tokyo-a'] }],
+              }],
+            },
+          },
+        },
+      },
+    })
+    const decision = explainSchedulingDecision(pod, [node], [])
+    expect(decision.selectedNode).toBe('node-1')
+    expect(decision.candidates[0].checks.find((check) => check.plugin === 'NodeAffinity')?.passed).toBe(true)
+  })
+
+  it('支持 Pod Affinity 与 Pod Anti-Affinity 的 required 过滤', () => {
+    const node = makeNode({
+      metadata: { ...makeNode().metadata, labels: { zone: 'tokyo-a' } },
+    })
+    const peer = makePod({
+      metadata: { ...makePod().metadata, name: 'peer', labels: { app: 'db' } },
+      status: { phase: 'Running', nodeName: 'node-1', containerStatuses: [] },
+    })
+    const affinityPod = makePod({
+      spec: {
+        ...makePod().spec,
+        affinity: {
+          podAffinity: {
+            requiredDuringSchedulingIgnoredDuringExecution: [{
+              topologyKey: 'zone',
+              labelSelector: { matchLabels: { app: 'db' } },
+            }],
+          },
+        },
+      },
+    })
+    expect(explainSchedulingDecision(affinityPod, [node], [peer]).selectedNode).toBe('node-1')
+
+    const antiAffinityPod = makePod({
+      spec: {
+        ...makePod().spec,
+        affinity: {
+          podAntiAffinity: affinityPod.spec.affinity?.podAffinity,
+        },
+      },
+    })
+    expect(explainSchedulingDecision(antiAffinityPod, [node], [peer]).selectedNode).toBeUndefined()
+  })
+
+  it('简化拓扑分散会过滤超过 maxSkew 的节点并输出真实分数', () => {
+    const nodeA = makeNode({
+      metadata: { ...makeNode().metadata, name: 'node-a', labels: { zone: 'a' } },
+    })
+    const nodeB = makeNode({
+      metadata: { ...makeNode().metadata, name: 'node-b', labels: { zone: 'b' } },
+    })
+    const occupant = makePod({
+      metadata: { ...makePod().metadata, name: 'web-a', labels: { app: 'web' } },
+      status: { phase: 'Running', nodeName: 'node-a', containerStatuses: [] },
+    })
+    const pod = makePod({
+      metadata: { ...makePod().metadata, labels: { app: 'web' } },
+      spec: {
+        ...makePod().spec,
+        topologySpreadConstraints: [{
+          maxSkew: 1,
+          topologyKey: 'zone',
+          whenUnsatisfiable: 'DoNotSchedule',
+          labelSelector: { matchLabels: { app: 'web' } },
+        }],
+      },
+    })
+    const decision = explainSchedulingDecision(pod, [nodeA, nodeB], [occupant])
+    expect(decision.selectedNode).toBe('node-b')
+    expect(decision.candidates.find((item) => item.nodeName === 'node-b')?.score).toBeGreaterThan(0)
   })
 })
