@@ -1,6 +1,78 @@
 import { listResources } from './objectStore'
 import { createResource } from './apiServer'
+import { useEtcdStore } from './store'
+import { COMPLETE_CLUSTER_YAML } from '@/data/completeClusterExample'
+import {
+  applyYaml,
+  type ApplyYamlResult,
+} from '@/simulation/yaml/apply/applyYamlDocuments'
+import { useYamlEditorStore } from '@/stores/useYamlEditorStore'
 import type { Namespace, Node } from '@/types/k8s'
+
+export type ClusterExperienceMode = 'showcase' | 'learning'
+
+const EXPERIENCE_MODE_STORAGE_KEY = 'k8s-lab-cluster-experience-mode'
+
+function readStoredExperienceMode(): ClusterExperienceMode | null {
+  if (typeof localStorage === 'undefined') return null
+  const stored = localStorage.getItem(EXPERIENCE_MODE_STORAGE_KEY)
+  return stored === 'showcase' || stored === 'learning' ? stored : null
+}
+
+function storeExperienceMode(mode: ClusterExperienceMode): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(EXPERIENCE_MODE_STORAGE_KEY, mode)
+  }
+}
+
+export function getClusterExperienceMode(): ClusterExperienceMode {
+  return readStoredExperienceMode() ?? 'showcase'
+}
+
+function applyCompleteClusterExample(): ApplyYamlResult {
+  return applyYaml(COMPLETE_CLUSTER_YAML)
+}
+
+/**
+ * IndexedDB 恢复完成后初始化首次体验。
+ *
+ * 旧版本没有“展示/学习模式”标记，因此第一次运行新版本时会用完整示例替换原来的
+ * 最小 Node 场景。此后刷新页面只在展示模式且集群为空时补回示例，不覆盖用户操作。
+ */
+export function initializeClusterExperience(): ApplyYamlResult | null {
+  const storedMode = readStoredExperienceMode()
+  if (storedMode === 'learning') {
+    return null
+  }
+
+  const hasResources = Object.keys(useEtcdStore.getState().resources).length > 0
+  if (storedMode === null) {
+    storeExperienceMode('showcase')
+    useEtcdStore.getState().resetCluster()
+    useYamlEditorStore.getState().setContent(COMPLETE_CLUSTER_YAML)
+    return applyCompleteClusterExample()
+  }
+
+  if (!hasResources) {
+    return applyCompleteClusterExample()
+  }
+  return null
+}
+
+/** 用户明确开始从零学习后，清空资源、Events 和 YAML，并在刷新后保持空集群。 */
+export function beginLearningFromScratch(): void {
+  storeExperienceMode('learning')
+  useEtcdStore.getState().resetCluster()
+  useYamlEditorStore.getState().setContent('')
+}
+
+/** 从学习模式返回完整示例，同时恢复 YAML 与虚拟集群。 */
+export function restoreCompleteClusterExample(): ApplyYamlResult {
+  storeExperienceMode('showcase')
+  useEtcdStore.getState().resetCluster()
+  useYamlEditorStore.getState().setContent(COMPLETE_CLUSTER_YAML)
+  return applyCompleteClusterExample()
+}
 
 /**
  * 首次进入应用时，如果虚拟集群还是空的（第一次使用、或者用户清空了数据），

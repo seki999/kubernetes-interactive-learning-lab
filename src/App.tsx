@@ -4,7 +4,8 @@ import { MainLayout } from '@/layouts/MainLayout'
 import { HomePage } from '@/pages/HomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { useThemeStore } from '@/stores/useThemeStore'
-import { ensureDefaultClusterSeed } from '@/kubernetes/api-server/bootstrap'
+import { initializeClusterExperience } from '@/kubernetes/api-server/bootstrap'
+import { useEtcdStore } from '@/kubernetes/api-server/store'
 
 // 除首页 / 404 页外，其余功能页面都用动态导入按需加载。
 // ClusterPage 体积不大，但 TerminalPage（xterm.js）、YamlLabPage（Monaco Editor）、
@@ -57,10 +58,15 @@ export default function App() {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
 
-  // 首次进入应用时，如果虚拟集群还是空的，播种一个最基础可用的集群
-  // （default 命名空间 + 一个 Node），供终端、YAML 编辑器等功能使用。
+  // 等 IndexedDB 中的旧集群状态恢复完成后，再决定是否加载完整展示场景。
+  // 这样不会先播种数据、随后又被异步持久化状态覆盖，也能让“从零学习”模式
+  // 在刷新页面后继续保持空集群。
   useEffect(() => {
-    ensureDefaultClusterSeed()
+    if (useEtcdStore.persist.hasHydrated()) {
+      initializeClusterExperience()
+      return
+    }
+    return useEtcdStore.persist.onFinishHydration(initializeClusterExperience)
   }, [])
 
   return (

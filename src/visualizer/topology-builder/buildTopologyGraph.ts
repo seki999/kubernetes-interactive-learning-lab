@@ -4,11 +4,15 @@ import { buildResourceKey } from '@/kubernetes/api-server/resourceKey'
 import { CONTROL_PLANE_NODE_IDS } from './controlPlaneIds'
 import type {
   ConfigMap,
+  Deployment,
   Endpoints,
   KubernetesResource,
+  Namespace,
   Node as K8sNode,
+  PersistentVolume,
   PersistentVolumeClaim,
   Pod,
+  ReplicaSet,
   Secret,
   Service,
 } from '@/types/k8s'
@@ -25,24 +29,30 @@ export interface TopologyGraph {
  * 也方便动画层复用（每次集群状态变化时重新计算一份新的拓扑）。
  *
  * 布局策略（对应需求文档第十一节"集群可视化"）：
- * - 第一行：Control Plane 固定节点（API Server / etcd / Scheduler / Controller Manager）
- * - 第二行：每个虚拟 Node 一列
- * - 第三行：Pod 按所在 Node 对齐分列，还未调度的 Pod 单独放在最右侧一列
- * - 第四行：Service，并用连线连到 Endpoints 里记录的后端 Pod
- * - 第五行：ConfigMap / Secret / PVC，并用连线连到引用它们的 Pod
+ * - 顶部：Control Plane
+ * - 左上：Namespace 与 Node
+ * - 中部：Deployment -> ReplicaSet -> Pod，以及 Service -> Endpoints -> Pod
+ * - 底部：ConfigMap / Secret / PVC -> PV
+ *
+ * 默认完整示例会覆盖当前支持的全部 11 种资源，因此这里不能只画工作负载的最终
+ * Pod；控制器生成的中间对象和存储绑定关系也必须成为可点击节点。
  */
 export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGraph {
   const nodes: FlowNode[] = []
   const edges: FlowEdge[] = []
 
-  const { apiServer: apiServerId, etcd: etcdId, scheduler: schedulerId, controllerManager: controllerManagerId } =
-    CONTROL_PLANE_NODE_IDS
+  const {
+    apiServer: apiServerId,
+    etcd: etcdId,
+    scheduler: schedulerId,
+    controllerManager: controllerManagerId,
+  } = CONTROL_PLANE_NODE_IDS
 
   nodes.push(
     controlPlaneNode(etcdId, 'etcd', 40),
-    controlPlaneNode(apiServerId, 'API Server', 260),
-    controlPlaneNode(schedulerId, 'Scheduler', 480),
-    controlPlaneNode(controllerManagerId, 'Controller Manager', 700)
+    controlPlaneNode(apiServerId, 'API Server', 300),
+    controlPlaneNode(schedulerId, 'Scheduler', 560),
+    controlPlaneNode(controllerManagerId, 'Controller Manager', 820)
   )
   edges.push(
     edge(apiServerId, etcdId),
@@ -50,102 +60,199 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
     edge(apiServerId, controllerManagerId)
   )
 
-  const k8sNodes = resources.filter((resource): resource is K8sNode => resource.kind === 'Node')
+  const namespaces = resources.filter(
+    (resource): resource is Namespace => resource.kind === 'Namespace'
+  )
+  const k8sNodes = resources.filter(
+    (resource): resource is K8sNode => resource.kind === 'Node'
+  )
+  const deployments = resources.filter(
+    (resource): resource is Deployment => resource.kind === 'Deployment'
+  )
+  const replicaSets = resources.filter(
+    (resource): resource is ReplicaSet => resource.kind === 'ReplicaSet'
+  )
   const pods = resources.filter((resource): resource is Pod => resource.kind === 'Pod')
-  const services = resources.filter((resource): resource is Service => resource.kind === 'Service')
+  const services = resources.filter(
+    (resource): resource is Service => resource.kind === 'Service'
+  )
   const endpointsList = resources.filter(
     (resource): resource is Endpoints => resource.kind === 'Endpoints'
   )
-  const configLikeResources = resources.filter(
-    (resource): resource is ConfigMap | Secret | PersistentVolumeClaim =>
-      resource.kind === 'ConfigMap' ||
-      resource.kind === 'Secret' ||
+  const configMaps = resources.filter(
+    (resource): resource is ConfigMap => resource.kind === 'ConfigMap'
+  )
+  const secrets = resources.filter(
+    (resource): resource is Secret => resource.kind === 'Secret'
+  )
+  const pvcs = resources.filter(
+    (resource): resource is PersistentVolumeClaim =>
       resource.kind === 'PersistentVolumeClaim'
   )
+  const pvs = resources.filter(
+    (resource): resource is PersistentVolume => resource.kind === 'PersistentVolume'
+  )
+  const configLikeResources: (ConfigMap | Secret | PersistentVolumeClaim)[] = [
+    ...configMaps,
+    ...secrets,
+    ...pvcs,
+  ]
 
-  const nodeXByUid = new Map<string, number>()
+  namespaces.forEach((namespace, index) => {
+    const namespaceId = resourceKeyOf(namespace)
+    nodes.push({
+      id: namespaceId,
+      position: { x: 40, y: 150 + index * 90 },
+      data: { label: `Namespace\n${namespace.metadata.name}` },
+      style: nodeBoxStyle('#ecfeff', '#0891b2'),
+    })
+    edges.push(edge(apiServerId, namespaceId, { dashed: true }))
+  })
+
   k8sNodes.forEach((node, index) => {
-    const x = index * 260 + 40
     const nodeId = resourceKeyOf(node)
-    nodeXByUid.set(nodeId, x)
     nodes.push({
       id: nodeId,
-      position: { x, y: 160 },
+      position: { x: 300, y: 150 + index * 90 },
       data: { label: `Node\n${node.metadata.name}` },
       style: nodeBoxStyle('#e0f2fe', '#0284c7'),
     })
     edges.push(edge(apiServerId, nodeId, { dashed: true }))
   })
 
-  const unscheduledColumnX = k8sNodes.length * 260 + 40
-  const podIndexByColumn = new Map<string, number>()
+  deployments.forEach((deployment, index) => {
+    nodes.push({
+      id: resourceKeyOf(deployment),
+      position: { x: 40, y: 380 + index * 110 },
+      data: { label: `Deployment\n${deployment.metadata.name}` },
+      style: nodeBoxStyle('#dbeafe', '#2563eb'),
+    })
+  })
 
-  pods.forEach((pod) => {
-    const podId = resourceKeyOf(pod)
-    const hostNode = pod.status.nodeName
-      ? k8sNodes.find((node) => node.metadata.name === pod.status.nodeName)
+  replicaSets.forEach((replicaSet, index) => {
+    const replicaSetId = resourceKeyOf(replicaSet)
+    nodes.push({
+      id: replicaSetId,
+      position: { x: 280, y: 380 + index * 110 },
+      data: { label: `ReplicaSet\n${replicaSet.metadata.name}` },
+      style: nodeBoxStyle('#e0e7ff', '#4f46e5'),
+    })
+    const owner = replicaSet.metadata.ownerReferences?.find(
+      (reference) => reference.kind === 'Deployment'
+    )
+    const deployment = owner
+      ? deployments.find(
+          (candidate) =>
+            candidate.metadata.uid === owner.uid || candidate.metadata.name === owner.name
+        )
       : undefined
-    const hostNodeId = hostNode ? resourceKeyOf(hostNode) : undefined
-    const columnKey = hostNodeId ?? 'unscheduled'
-    const x = hostNodeId ? (nodeXByUid.get(hostNodeId) ?? unscheduledColumnX) : unscheduledColumnX
-    const rowIndex = podIndexByColumn.get(columnKey) ?? 0
-    podIndexByColumn.set(columnKey, rowIndex + 1)
+    if (deployment) {
+      edges.push(edge(resourceKeyOf(deployment), replicaSetId))
+    }
+  })
 
+  pods.forEach((pod, index) => {
+    const podId = resourceKeyOf(pod)
     nodes.push({
       id: podId,
       type: 'pod',
-      position: { x, y: 320 + rowIndex * 90 },
-      data: { label: `Pod\n${pod.metadata.name}\n${pod.status.phase}`, phase: pod.status.phase },
+      position: { x: 520, y: 330 + index * 100 },
+      data: {
+        label: `Pod\n${pod.metadata.name}\n${pod.status.phase}`,
+        phase: pod.status.phase,
+      },
     })
-    if (hostNodeId) {
-      edges.push(edge(hostNodeId, podId))
+
+    const node = pod.status.nodeName
+      ? k8sNodes.find((candidate) => candidate.metadata.name === pod.status.nodeName)
+      : undefined
+    if (node) {
+      edges.push(edge(resourceKeyOf(node), podId))
+    }
+
+    const owner = pod.metadata.ownerReferences?.find(
+      (reference) => reference.kind === 'ReplicaSet'
+    )
+    const replicaSet = owner
+      ? replicaSets.find(
+          (candidate) =>
+            candidate.metadata.uid === owner.uid || candidate.metadata.name === owner.name
+        )
+      : undefined
+    if (replicaSet) {
+      edges.push(edge(resourceKeyOf(replicaSet), podId))
     }
   })
 
   services.forEach((service, index) => {
     const serviceId = resourceKeyOf(service)
-    const x = index * 220 + 40
     nodes.push({
       id: serviceId,
-      position: { x, y: 560 },
+      position: { x: 800, y: 380 + index * 110 },
       data: { label: `Service\n${service.metadata.name}` },
       style: nodeBoxStyle('#ede9fe', '#7c3aed'),
     })
-    edges.push(edge(apiServerId, serviceId, { dashed: true }))
 
     const endpoints = endpointsList.find(
       (item) =>
         item.metadata.name === service.metadata.name &&
         item.metadata.namespace === service.metadata.namespace
     )
-    endpoints?.addresses.forEach((address) => {
+    if (endpoints) {
+      edges.push(edge(serviceId, resourceKeyOf(endpoints)))
+    }
+  })
+
+  endpointsList.forEach((endpoints, index) => {
+    const endpointsId = resourceKeyOf(endpoints)
+    nodes.push({
+      id: endpointsId,
+      position: { x: 1040, y: 380 + index * 110 },
+      data: { label: `Endpoints\n${endpoints.metadata.name}` },
+      style: nodeBoxStyle('#f3e8ff', '#9333ea'),
+    })
+    endpoints.addresses.forEach((address) => {
       const targetPod = pods.find(
         (pod) =>
-          pod.metadata.name === address.podName && pod.metadata.namespace === service.metadata.namespace
+          pod.metadata.name === address.podName &&
+          pod.metadata.namespace === endpoints.metadata.namespace
       )
       if (targetPod) {
-        edges.push(edge(serviceId, resourceKeyOf(targetPod), { animated: true }))
+        edges.push(edge(endpointsId, resourceKeyOf(targetPod), { animated: true }))
       }
     })
   })
 
+  const supportResourcesY = Math.max(780, 380 + pods.length * 100)
   configLikeResources.forEach((resource, index) => {
     nodes.push({
       id: resourceKeyOf(resource),
-      position: { x: index * 180 + 40, y: 700 },
+      position: { x: index * 220 + 40, y: supportResourcesY },
       data: { label: `${resource.kind}\n${resource.metadata.name}` },
       style: nodeBoxStyle('#fef3c7', '#d97706'),
+    })
+  })
+
+  pvs.forEach((pv, index) => {
+    nodes.push({
+      id: resourceKeyOf(pv),
+      position: { x: index * 220 + 520, y: supportResourcesY + 140 },
+      data: { label: `PersistentVolume\n${pv.metadata.name}` },
+      style: nodeBoxStyle('#dcfce7', '#16a34a'),
     })
   })
 
   pods.forEach((pod) => {
     pod.spec.volumes?.forEach((volume) => {
       const targetName =
-        volume.configMap?.name ?? volume.secret?.secretName ?? volume.persistentVolumeClaim?.claimName
+        volume.configMap?.name ??
+        volume.secret?.secretName ??
+        volume.persistentVolumeClaim?.claimName
       if (!targetName) return
       const target = configLikeResources.find(
         (resource) =>
-          resource.metadata.name === targetName && resource.metadata.namespace === pod.metadata.namespace
+          resource.metadata.name === targetName &&
+          resource.metadata.namespace === pod.metadata.namespace
       )
       if (target) {
         edges.push(edge(resourceKeyOf(pod), resourceKeyOf(target), { dashed: true }))
@@ -153,11 +260,41 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
     })
   })
 
+  pvcs.forEach((pvc) => {
+    const boundPv = pvc.status.volumeName
+      ? pvs.find((pv) => pv.metadata.name === pvc.status.volumeName)
+      : undefined
+    if (boundPv) {
+      edges.push(edge(resourceKeyOf(pvc), resourceKeyOf(boundPv)))
+    }
+  })
+
+  namespaces.forEach((namespace) => {
+    const namespaceId = resourceKeyOf(namespace)
+    const topLevelResidents = resources.filter(
+      (resource) =>
+        resource.metadata.namespace === namespace.metadata.name &&
+        (resource.kind === 'Deployment' ||
+          resource.kind === 'Service' ||
+          resource.kind === 'ConfigMap' ||
+          resource.kind === 'Secret' ||
+          resource.kind === 'PersistentVolumeClaim' ||
+          (resource.kind === 'Pod' && !resource.metadata.ownerReferences?.length))
+    )
+    topLevelResidents.forEach((resource) => {
+      edges.push(edge(namespaceId, resourceKeyOf(resource), { dashed: true }))
+    })
+  })
+
   return { nodes, edges }
 }
 
 function resourceKeyOf(resource: KubernetesResource): string {
-  return buildResourceKey(resource.kind, resource.metadata.name, resource.metadata.namespace)
+  return buildResourceKey(
+    resource.kind,
+    resource.metadata.name,
+    resource.metadata.namespace
+  )
 }
 
 function controlPlaneNode(id: string, label: string, x: number): FlowNode {
@@ -193,4 +330,3 @@ function nodeBoxStyle(background: string, border: string): CSSProperties {
     whiteSpace: 'pre-line',
   }
 }
-

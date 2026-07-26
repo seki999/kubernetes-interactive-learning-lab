@@ -7,6 +7,7 @@ import {
   type YamlDiffPreview,
 } from '@/simulation/yaml/diff/buildYamlDiff'
 import { MonacoYamlEditor } from '@/components/YamlEditor/MonacoYamlEditor'
+import { ClusterExperienceControls } from '@/components/ClusterExperienceControls'
 
 function downloadYaml(content: string): void {
   const blob = new Blob([content], { type: 'text/yaml;charset=utf-8' })
@@ -113,6 +114,8 @@ export function YamlLabPage() {
           </button>
         </div>
       </div>
+
+      <ClusterExperienceControls />
 
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-w-0 flex-1 overflow-hidden rounded-md border border-slate-200 dark:border-slate-800">

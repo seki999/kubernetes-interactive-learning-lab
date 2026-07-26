@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { COMPLETE_CLUSTER_YAML } from '@/data/completeClusterExample'
 
 // YAML 编辑器当前内容。
 //
@@ -12,20 +13,7 @@ interface YamlEditorState {
   setContent: (content: string) => void
 }
 
-export const DEFAULT_YAML_EXAMPLE = `apiVersion: v1
-kind: Pod
-metadata:
-  name: demo-pod
-  namespace: default
-  labels:
-    app: demo
-spec:
-  containers:
-    - name: nginx
-      image: nginx:1.27
-      ports:
-        - containerPort: 80
-`
+export const DEFAULT_YAML_EXAMPLE = COMPLETE_CLUSTER_YAML
 
 export const useYamlEditorStore = create<YamlEditorState>()(
   persist(

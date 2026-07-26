@@ -46,7 +46,11 @@ export function ClusterTopology() {
     const map = new Map<string, KubernetesResource>()
     for (const resource of allResources) {
       map.set(
-        buildResourceKey(resource.kind, resource.metadata.name, resource.metadata.namespace),
+        buildResourceKey(
+          resource.kind,
+          resource.metadata.name,
+          resource.metadata.namespace
+        ),
         resource
       )
     }
@@ -62,7 +66,9 @@ export function ClusterTopology() {
       // PodNode 组件自己根据 data.highlighted 画高亮环，不走 style 叠加。
       return { ...node, data: { ...node.data, highlighted } }
     }
-    return highlighted ? { ...node, style: { ...node.style, ...HIGHLIGHT_NODE_STYLE } } : node
+    return highlighted
+      ? { ...node, style: { ...node.style, ...HIGHLIGHT_NODE_STYLE } }
+      : node
   })
   const edges: FlowEdge[] = graph.edges.map((edge) =>
     highlightedEdgeIds.has(edge.id)
@@ -126,7 +132,9 @@ export function ClusterTopology() {
               onPaneClick={() => setSelectedUid(null)}
               nodesDraggable={false}
               nodesConnectable={false}
+              minZoom={0.2}
               fitView
+              fitViewOptions={{ padding: 0.12 }}
             >
               <Background />
               <Controls showInteractive={false} />
@@ -145,7 +153,10 @@ export function ClusterTopology() {
                 模拟请求（观察 Service 转发到哪个 Pod）
               </button>
             )}
-            <ResourceDetailPanel resource={selected} onDeleted={() => setSelectedUid(null)} />
+            <ResourceDetailPanel
+              resource={selected}
+              onDeleted={() => setSelectedUid(null)}
+            />
           </div>
         )}
       </div>

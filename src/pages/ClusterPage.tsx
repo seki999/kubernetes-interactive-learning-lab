@@ -3,6 +3,7 @@ import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { formatAge } from '@/terminal/formatter/table'
 import { ResourceDetailPanel } from '@/components/ResourceDetailPanel'
 import { ClusterTopology } from '@/components/Topology/ClusterTopology'
+import { ClusterExperienceControls } from '@/components/ClusterExperienceControls'
 import { RESOURCE_CONCEPTS } from '@/data/resourceConcepts'
 import { ALL_RESOURCE_KINDS, isClusterScoped } from '@/types/k8s'
 import type { KubernetesResource, Namespace, ResourceKind } from '@/types/k8s'
@@ -89,6 +90,8 @@ export function ClusterPage() {
           查看虚拟集群中的资源，点击某一行可以查看详情、YAML、状态和 Events。
         </p>
       </div>
+
+      <ClusterExperienceControls />
 
       <div className="flex gap-1 text-sm">
         <button
