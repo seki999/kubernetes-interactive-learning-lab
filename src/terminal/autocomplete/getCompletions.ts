@@ -27,6 +27,8 @@ export const SUBCOMMANDS = [
   'exec',
   'edit',
   'rollout',
+  'auth',
+  'diff',
 ]
 
 /** 支持"补全资源名称"的子命令（第三个 token 是资源类型，第四个是名称）。 */

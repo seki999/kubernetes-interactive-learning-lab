@@ -14,7 +14,7 @@ import {
 } from './nodeOps'
 import { runConfig, runApiResources, runExplain, runVersion, runClusterInfo } from './metaCommands'
 import { runLogs, runTop } from './logsTop'
-import { runExec, runEdit, runRollout } from './notImplemented'
+import { runExec, runEdit, runRollout, runAuth, runDiff } from './notImplemented'
 import { fail, type CommandOutput } from './types'
 
 /**
@@ -89,6 +89,10 @@ export function runKubectlCommand(line: string): CommandOutput {
       return runEdit()
     case 'rollout':
       return runRollout()
+    case 'auth':
+      return runAuth()
+    case 'diff':
+      return runDiff()
     default:
       return fail([
         `error: 未知的 kubectl 子命令 "${subcommand}"。输入 help 查看可用命令列表。`,

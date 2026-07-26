@@ -205,6 +205,26 @@ describe('runKubectlCommand - config / api-resources / explain', () => {
       true
     )
   })
+
+  // auth / diff 是课程内容（RBAC 课、综合实战课）里直接展示给用户的命令示例，
+  // 之前没有接入 runKubectlCommand，会落到"未知的 kubectl 子命令"这个通用
+  // 错误分支，和 exec/edit/rollout 已有的"明确说明尚未实现"体验不一致——
+  // 这是审查所有命令示例时发现的问题，这里补上一致的处理和回归测试。
+  it('auth 明确说明本模拟器尚未实现 RBAC，而不是报未知子命令', () => {
+    const result = runKubectlCommand(
+      'kubectl auth can-i delete pods --as=system:serviceaccount:demo:student'
+    )
+    expect(result.isError).toBe(true)
+    expect(result.lines[0]).not.toContain('未知的 kubectl 子命令')
+    expect(result.lines[0]).toContain('RBAC')
+  })
+
+  it('diff 引导去 YAML 实验室查看应用前差异预览，而不是报未知子命令', () => {
+    const result = runKubectlCommand('kubectl diff -f app.yaml')
+    expect(result.isError).toBe(true)
+    expect(result.lines[0]).not.toContain('未知的 kubectl 子命令')
+    expect(result.lines[0]).toContain('YAML 实验室')
+  })
 })
 
 describe('runKubectlCommand - logs', () => {

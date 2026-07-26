@@ -6,14 +6,22 @@ export function notImplemented(reason: string): CommandOutput {
 }
 
 export const runExec = (): CommandOutput =>
-  notImplemented(
-    '浏览器环境无法运行真实容器 Shell，exec 功能计划在后续阶段以模拟终端的形式提供。'
-  )
+  notImplemented('浏览器环境无法运行真实容器 Shell，本模拟器不提供这个能力。')
 
 export const runEdit = (): CommandOutput =>
   notImplemented('请前往"YAML 实验室"页面修改该资源的 YAML 并点击"应用配置"。')
 
 export const runRollout = (): CommandOutput =>
   notImplemented(
-    '滚动更新版本历史记录功能计划在"可视化与动画"阶段随滚动更新动画一起实现。'
+    '本模拟器的滚动更新是简化版（修改镜像会直接重建全部 Pod），没有实现 rollout 版本历史和回滚。'
+  )
+
+export const runAuth = (): CommandOutput =>
+  notImplemented(
+    '本模拟器尚未实现 RBAC（Role/RoleBinding/ServiceAccount），无法判断"某个身份能不能执行某个操作"，所有操作在这个虚拟集群里都不受权限限制。'
+  )
+
+export const runDiff = (): CommandOutput =>
+  notImplemented(
+    '请前往"YAML 实验室"页面，那里的"应用配置"按钮会先展示一份和 kubectl diff 类似的应用前差异预览。'
   )
