@@ -11,6 +11,13 @@ import {
   removeResourceRaw,
 } from './objectStore'
 import type { KubernetesResource, ResourceKind } from '@/types/k8s'
+import {
+  getActiveTraceId,
+  recordTraceStep,
+  registerTraceResource,
+  resourceReference,
+  updateTraceHttp,
+} from '@/simulation/trace/traceManager'
 
 export { getResource, listResources } from './objectStore'
 
@@ -21,6 +28,129 @@ export class ApiServerError extends Error {
     super(errors.join('；'))
     this.errors = errors
   }
+}
+
+const RESOURCE_PATHS: Record<ResourceKind, string> = {
+  Pod: 'pods',
+  Deployment: 'deployments',
+  ReplicaSet: 'replicasets',
+  Service: 'services',
+  Endpoints: 'endpoints',
+  Node: 'nodes',
+  Namespace: 'namespaces',
+  ConfigMap: 'configmaps',
+  Secret: 'secrets',
+  PersistentVolumeClaim: 'persistentvolumeclaims',
+  PersistentVolume: 'persistentvolumes',
+}
+
+function apiUrl(resource: KubernetesResource): string {
+  const groupPrefix = resource.apiVersion.includes('/')
+    ? `/apis/${resource.apiVersion}`
+    : `/api/${resource.apiVersion}`
+  const namespace = resource.metadata.namespace
+    ? `/namespaces/${resource.metadata.namespace}`
+    : ''
+  return `${groupPrefix}${namespace}/${RESOURCE_PATHS[resource.kind as ResourceKind]}/${resource.metadata.name}`
+}
+
+function traceApiRequest(
+  resource: KubernetesResource,
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+): void {
+  registerTraceResource(resource, undefined, getActiveTraceId())
+  updateTraceHttp({
+    method,
+    url: apiUrl(resource),
+    headers: {
+      'Content-Type':
+        method === 'PATCH'
+          ? 'application/apply-patch+yaml'
+          : 'application/json',
+      'X-Simulation-Mode': 'teaching',
+    },
+    requestBody: method === 'DELETE' ? undefined : resource,
+  })
+  recordTraceStep({
+    resource,
+    component: 'api-server',
+    action: 'RECEIVE_REQUEST',
+    description: `API Server 接收 ${method} 请求`,
+    input: { method, url: apiUrl(resource) },
+  })
+  recordTraceStep({
+    resource,
+    component: 'api-server',
+    action: 'AUTHENTICATE',
+    description: 'API Server 执行身份认证模拟',
+    input: { identity: 'virtual-learner' },
+    output: { authenticated: true },
+  })
+  recordTraceStep({
+    resource,
+    component: 'api-server',
+    action: 'AUTHORIZE',
+    description: 'API Server 执行授权模拟',
+    input: { verb: method, resource: resource.kind },
+    output: { allowed: true },
+  })
+  recordTraceStep({
+    resource,
+    component: 'admission',
+    action: 'ADMISSION',
+    description: 'Admission 模拟检查请求',
+    output: { admitted: true, note: '教学模拟未加载真实 Admission Webhook' },
+  })
+}
+
+function traceValidation(
+  resource: KubernetesResource,
+  errors: string[]
+): void {
+  recordTraceStep({
+    resource,
+    component: 'api-server',
+    action: 'VALIDATE_SCHEMA',
+    description:
+      errors.length === 0 ? 'API Server Schema 校验通过' : 'API Server Schema 校验失败',
+    output: errors.length === 0 ? { valid: true } : { valid: false, errors },
+    status: errors.length === 0 ? 'success' : 'failed',
+    error: errors.length > 0 ? errors.join('；') : undefined,
+  })
+}
+
+function tracePersisted(
+  resource: KubernetesResource,
+  status: number,
+  watchEventType: 'ADDED' | 'MODIFIED' | 'DELETED'
+): void {
+  recordTraceStep({
+    resource,
+    component: 'etcd',
+    action: watchEventType === 'DELETED' ? 'DELETE_RESOURCE' : 'SAVE_RESOURCE',
+    description:
+      watchEventType === 'DELETED'
+        ? '虚拟 etcd 删除资源'
+        : 'API Server 将资源保存到虚拟 etcd',
+    output: { resourceVersion: resource.metadata.resourceVersion },
+  })
+  recordTraceStep({
+    resource,
+    component: 'api-server',
+    action: 'PUBLISH_WATCH_EVENT',
+    description: `API Server 发布 ${watchEventType} Watch Event`,
+    output: { type: watchEventType, object: resourceReference(resource) },
+    relatedEvents: [watchEventType],
+  })
+  updateTraceHttp({
+    responseStatus: status,
+    responseBody:
+      watchEventType === 'DELETED'
+        ? { status: 'Success', details: resourceReference(resource) }
+        : resource,
+    resourceVersion: resource.metadata.resourceVersion,
+    watchEventType,
+  })
 }
 
 /**
@@ -41,12 +171,20 @@ export function createResource<T extends KubernetesResource>(resource: T): T {
     },
   }
 
+  traceApiRequest(prepared, 'POST')
   const errors = validateResource(prepared)
+  traceValidation(prepared, errors)
   if (errors.length > 0) {
+    updateTraceHttp({
+      responseStatus: 422,
+      responseBody: { kind: 'Status', status: 'Failure', errors },
+      watchEventType: 'ERROR',
+    })
     throw new ApiServerError(errors)
   }
 
   putResourceRaw(prepared)
+  tracePersisted(prepared, 201, 'ADDED')
   emitEvent({
     involvedObject: {
       kind: prepared.kind,
@@ -82,13 +220,22 @@ export function updateResource<T extends KubernetesResource>(
   }
 
   const next = updater(current)
+  registerTraceResource(next)
+  traceApiRequest(next, 'PUT')
   const errors = validateResource(next)
+  traceValidation(next, errors)
   if (errors.length > 0) {
+    updateTraceHttp({
+      responseStatus: 422,
+      responseBody: { kind: 'Status', status: 'Failure', errors },
+      watchEventType: 'ERROR',
+    })
     throw new ApiServerError(errors)
   }
 
   next.metadata.resourceVersion = String(Number(current.metadata.resourceVersion) + 1)
   putResourceRaw(next)
+  tracePersisted(next, 200, 'MODIFIED')
   emitEvent({
     involvedObject: { kind, name, namespace },
     type: 'Normal',
@@ -107,10 +254,9 @@ export function applyResource<T extends KubernetesResource>(resource: T): T {
     resource.metadata.name,
     resource.metadata.namespace
   )
-  if (!existing) {
-    return createResource(resource)
-  }
-  return updateResource<T>(
+  const applied = !existing
+    ? createResource(resource)
+    : updateResource<T>(
     kind,
     resource.metadata.name,
     resource.metadata.namespace,
@@ -122,7 +268,17 @@ export function applyResource<T extends KubernetesResource>(resource: T): T {
         resourceVersion: existing.metadata.resourceVersion,
       },
     })
-  )
+      )
+  updateTraceHttp({
+    method: 'PATCH',
+    url: apiUrl(applied),
+    headers: {
+      'Content-Type': 'application/apply-patch+yaml',
+      'X-Simulation-Mode': 'teaching',
+    },
+    requestBody: resource,
+  })
+  return applied
 }
 
 /**
@@ -203,11 +359,14 @@ export function deleteResource(
   if (!resource) {
     return
   }
+  registerTraceResource(resource)
+  traceApiRequest(resource, 'DELETE')
   const replicaSetOwnerRef = resource.metadata.ownerReferences?.find(
     (ref) => ref.kind === 'ReplicaSet'
   )
 
   deleteResourceCascade(kind, name, namespace)
+  tracePersisted(resource, 200, 'DELETED')
 
   if (replicaSetOwnerRef) {
     const owner = getResource('ReplicaSet', replicaSetOwnerRef.name, namespace)

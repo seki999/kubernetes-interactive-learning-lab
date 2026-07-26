@@ -8,6 +8,10 @@ import {
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import type { Endpoints, Pod, Service } from '@/types/k8s'
+import {
+  recordTraceStep,
+  resourceReference,
+} from '@/simulation/trace/traceManager'
 
 function matchesSelector(pod: Pod, selector: Record<string, string>): boolean {
   const labels = pod.metadata.labels ?? {}
@@ -28,7 +32,7 @@ function isPodReady(pod: Pod): boolean {
  * Endpoints 资源。没有匹配到任何就绪 Pod 时，产生中文 Warning 事件，
  * 供 kubectl describe service 和详情面板展示"没有可用后端 Pod"。
  */
-export function reconcileService(service: Service): void {
+export function reconcileService(service: Service, traceSource?: Pod): void {
   const namespace = service.metadata.namespace
   const candidatePods = listResources<Pod>('Pod', namespace).filter(
     (pod) =>
@@ -74,6 +78,18 @@ export function reconcileService(service: Service): void {
     })),
   }
   putResourceRaw(endpoints)
+  recordTraceStep({
+    resource: traceSource ?? service,
+    component: 'endpoint-controller',
+    action: 'UPDATE_ENDPOINTS',
+    description: `Endpoint Controller 更新 Service ${service.metadata.name} 的 Endpoints`,
+    input: { selector: service.spec.selector },
+    output: {
+      readyAddresses: endpoints.addresses.length,
+      notReadyAddresses: endpoints.notReadyAddresses.length,
+    },
+    relatedResources: [resourceReference(service), resourceReference(endpoints)],
+  })
   emitDomainEvent({
     type: 'SERVICE_ENDPOINTS_UPDATED',
     payload: { name: service.metadata.name, namespace, readyCount: readyPods.length },
@@ -99,8 +115,11 @@ export function reconcileService(service: Service): void {
  * Node 控制器（Pod 被驱逐时）都会调用这个函数，让 Endpoints 及时反映
  * Pod 实际就绪状态的变化，而不需要用户重新触发一次 Service 更新。
  */
-export function reconcileServicesForNamespace(namespace: string | undefined): void {
+export function reconcileServicesForNamespace(
+  namespace: string | undefined,
+  traceSource?: Pod
+): void {
   for (const service of listResources<Service>('Service', namespace)) {
-    reconcileService(service)
+    reconcileService(service, traceSource)
   }
 }

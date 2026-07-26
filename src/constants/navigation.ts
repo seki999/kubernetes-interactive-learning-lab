@@ -14,6 +14,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/cluster', label: '虚拟集群' },
   { path: '/terminal', label: 'kubectl 终端' },
   { path: '/yaml-lab', label: 'YAML 实验室' },
+  { path: '/traces', label: '请求追踪器' },
   { path: '/designer', label: '拖拽式架构设计器' },
   { path: '/courses', label: '课程中心' },
   { path: '/labs', label: '实验任务' },

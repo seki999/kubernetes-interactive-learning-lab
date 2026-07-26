@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { indexedDbStorage } from '@/persistence/indexedDbStorage'
 import type { KubernetesResource, K8sEvent } from '@/types/k8s'
+import { clearTraceResourceLinks } from '@/simulation/trace/traceManager'
 
 // 虚拟 etcd：只负责"存"，不负责业务逻辑。
 //
@@ -43,7 +44,10 @@ export const useEtcdStore = create<EtcdState>()(
         set((state) => ({
           events: [event, ...state.events].slice(0, MAX_EVENTS),
         })),
-      resetCluster: () => set({ resources: {}, events: [] }),
+      resetCluster: () => {
+        clearTraceResourceLinks()
+        set({ resources: {}, events: [] })
+      },
     }),
     {
       name: 'k8s-lab-cluster',

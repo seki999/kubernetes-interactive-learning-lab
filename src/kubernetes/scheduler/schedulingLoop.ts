@@ -8,6 +8,7 @@ import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { startKubeletForPod } from '@/kubernetes/kubelet/kubelet'
 import { selectNodeForPod } from './scheduler'
 import type { Node, Pod } from '@/types/k8s'
+import { recordTraceStep, resourceReference } from '@/simulation/trace/traceManager'
 
 /**
  * 把纯函数版的 Scheduler（selectNodeForPod）接到虚拟集群上：
@@ -23,7 +24,36 @@ export function trySchedulePod(podName: string, namespace: string | undefined): 
 
   const nodes = listResources<Node>('Node')
   const existingPods = listResources<Pod>('Pod')
+  recordTraceStep({
+    resource: pod,
+    component: 'scheduler',
+    action: 'FIND_PENDING_POD',
+    description: 'Scheduler 查找未调度 Pod',
+    input: resourceReference(pod),
+  })
   const result = selectNodeForPod(pod, nodes, existingPods)
+  recordTraceStep({
+    resource: pod,
+    component: 'scheduler',
+    action: 'FILTER_NODES',
+    description: 'Scheduler 根据资源、标签、污点和亲和性过滤 Node',
+    input: { candidates: nodes.map((node) => node.metadata.name) },
+    output: {
+      failures: result.failureDetails,
+      feasibleNodes: result.nodeName ? [result.nodeName] : [],
+    },
+    status: result.scheduled ? 'success' : 'failed',
+  })
+  recordTraceStep({
+    resource: pod,
+    component: 'scheduler',
+    action: 'SCORE_NODES',
+    description: 'Scheduler 对可行 Node 进行教学级简化打分',
+    output: result.nodeName
+      ? { selectedNode: result.nodeName, score: 100 }
+      : { selectedNode: null },
+    status: result.scheduled ? 'success' : 'failed',
+  })
 
   if (!result.scheduled || !result.nodeName) {
     const reasonSummary =
@@ -70,6 +100,13 @@ export function trySchedulePod(podName: string, namespace: string | undefined): 
   emitDomainEvent({
     type: 'POD_SCHEDULED',
     payload: { podName, namespace, nodeName: result.nodeName },
+  })
+  recordTraceStep({
+    resource: pod,
+    component: 'scheduler',
+    action: 'BIND_POD',
+    description: `Scheduler 将 Pod 绑定到 Node ${result.nodeName}`,
+    output: { nodeName: result.nodeName },
   })
 
   startKubeletForPod(podName, namespace)

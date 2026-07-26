@@ -20,6 +20,9 @@ const TerminalPage = lazy(() =>
 const YamlLabPage = lazy(() =>
   import('@/pages/YamlLabPage').then((m) => ({ default: m.YamlLabPage }))
 )
+const TracePage = lazy(() =>
+  import('@/pages/TracePage').then((m) => ({ default: m.TracePage }))
+)
 const DesignerPage = lazy(() =>
   import('@/pages/DesignerPage').then((m) => ({ default: m.DesignerPage }))
 )
@@ -103,6 +106,14 @@ export default function App() {
             element={
               <Suspense fallback={<PageLoadingFallback />}>
                 <DesignerPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/traces"
+            element={
+              <Suspense fallback={<PageLoadingFallback />}>
+                <TracePage />
               </Suspense>
             }
           />

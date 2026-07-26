@@ -9,9 +9,21 @@ import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
 import { syncReplicaSetStatus } from './statusSync'
 import type { Pod, ReplicaSet } from '@/types/k8s'
+import {
+  recordTraceStep,
+  registerTraceResource,
+  resourceReference,
+} from '@/simulation/trace/traceManager'
 
 /** ReplicaSet 控制器：让实际 Pod 数量收敛到 spec.replicas。 */
 export function reconcileReplicaSet(replicaSet: ReplicaSet): void {
+  recordTraceStep({
+    resource: replicaSet,
+    component: 'replicaset-controller',
+    action: 'RECONCILE_REPLICASET',
+    description: 'ReplicaSet Controller 计算期望与实际 Pod 数量差异',
+    input: { desiredReplicas: replicaSet.spec.replicas },
+  })
   const namespace = replicaSet.metadata.namespace
   const ownedPods = listResources<Pod>('Pod', namespace).filter(
     (pod) =>
@@ -65,6 +77,15 @@ export function reconcileReplicaSet(replicaSet: ReplicaSet): void {
         status: { phase: 'Pending', containerStatuses: [] },
       }
       putResourceRaw(pod)
+      registerTraceResource(pod, replicaSet)
+      recordTraceStep({
+        resource: replicaSet,
+        component: 'replicaset-controller',
+        action: 'CREATE_POD',
+        description: `ReplicaSet Controller 创建 Pod ${podName}`,
+        output: resourceReference(pod),
+        relatedResources: [resourceReference(replicaSet), resourceReference(pod)],
+      })
       emitEvent({
         involvedObject: { kind: 'Pod', name: podName, namespace },
         type: 'Normal',

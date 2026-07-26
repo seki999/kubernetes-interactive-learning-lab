@@ -120,8 +120,10 @@ export type DomainEventType = DomainEvent['type']
 type Listener = (event: DomainEvent) => void
 
 const listeners = new Set<Listener>()
+const taps = new Set<Listener>()
 
 export function emitDomainEvent(event: DomainEvent): void {
+  taps.forEach((listener) => listener(event))
   listeners.forEach((listener) => listener(event))
 }
 
@@ -129,6 +131,12 @@ export function emitDomainEvent(event: DomainEvent): void {
 export function subscribeDomainEvents(listener: Listener): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
+}
+
+/** 系统级观察器不会被动画测试的 listener reset 清除，供 Trace 等基础设施使用。 */
+export function subscribeDomainEventTap(listener: Listener): () => void {
+  taps.add(listener)
+  return () => taps.delete(listener)
 }
 
 /** 仅供测试使用：清空所有订阅者，避免测试用例之间互相影响。 */

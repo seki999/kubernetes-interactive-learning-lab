@@ -17,13 +17,48 @@ import { runLogs, runTop } from './logsTop'
 import { runExec, runEdit, runAuth, runDiff } from './notImplemented'
 import { runRollout } from './rollout'
 import { fail, type CommandOutput } from './types'
+import {
+  finishKubernetesTrace,
+  recordTraceStep,
+  startKubernetesTrace,
+} from '@/simulation/trace/traceManager'
 
 /**
  * 命令解析器入口：本终端只模拟 kubectl 命令。
  * 按第一个 token 判断是不是 kubectl，再按第二个 token（子命令）分发到具体的处理函数。
  */
 export function runKubectlCommand(line: string): CommandOutput {
-  const tokens = tokenize(line.trim())
+  const trimmed = line.trim()
+  if (!trimmed) return { lines: [] }
+  const traceId = startKubernetesTrace({ source: 'kubectl', command: trimmed })
+  recordTraceStep({
+    traceId,
+    component: 'kubectl',
+    action: 'PARSE_COMMAND',
+    description: 'kubectl 解析命令参数',
+    input: { command: trimmed },
+    output: { tokens: tokenize(trimmed) },
+  })
+  try {
+    const result = executeKubectlCommand(trimmed)
+    finishKubernetesTrace(traceId, result.isError ? 'failed' : 'success')
+    return result
+  } catch (error) {
+    recordTraceStep({
+      traceId,
+      component: 'kubectl',
+      action: 'COMMAND_FAILED',
+      description: 'kubectl 命令执行失败',
+      status: 'failed',
+      error: error instanceof Error ? error.message : '未知错误',
+    })
+    finishKubernetesTrace(traceId, 'failed')
+    throw error
+  }
+}
+
+function executeKubectlCommand(line: string): CommandOutput {
+  const tokens = tokenize(line)
   if (tokens.length === 0) {
     return { lines: [] }
   }

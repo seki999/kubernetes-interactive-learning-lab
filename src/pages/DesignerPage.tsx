@@ -17,6 +17,11 @@ import { ResourceDetailPanel } from '@/components/ResourceDetailPanel'
 import { ResourcePalette, type PaletteEntry } from '@/components/Designer/ResourcePalette'
 import { buildDefaultResource } from '@/components/Designer/defaultResource'
 import type { ResourceKind } from '@/types/k8s'
+import {
+  finishKubernetesTrace,
+  recordTraceStep,
+  startKubernetesTrace,
+} from '@/simulation/trace/traceManager'
 
 const PALETTE_ITEMS: PaletteEntry[] = [
   { kind: 'Namespace', label: 'Namespace' },
@@ -152,10 +157,39 @@ export function DesignerPage() {
     if (event.over?.id !== CANVAS_DROP_ID) return
     const kind = event.active.data.current?.kind as ResourceKind | undefined
     if (!kind) return
+    let traceId: string | undefined
     try {
       const resource = buildDefaultResource(kind)
+      traceId = startKubernetesTrace({
+        source: 'designer',
+        command: `拖入 ${kind}`,
+        resourceRef: {
+          kind: resource.kind,
+          name: resource.metadata.name,
+          namespace: resource.metadata.namespace,
+        },
+      })
+      recordTraceStep({
+        traceId,
+        component: 'kubectl',
+        action: 'DESIGNER_CREATE_RESOURCE',
+        description: `架构设计器生成 ${kind} 资源定义`,
+        input: resource,
+      })
       createResource(resource)
-    } catch {
+      finishKubernetesTrace(traceId, 'success')
+    } catch (error) {
+      if (traceId) {
+        recordTraceStep({
+          traceId,
+          component: 'kubectl',
+          action: 'DESIGNER_CREATE_FAILED',
+          description: '架构设计器创建资源失败',
+          status: 'failed',
+          error: error instanceof Error ? error.message : '未知错误',
+        })
+        finishKubernetesTrace(traceId, 'failed')
+      }
       // buildDefaultResource 目前对所有面板里的类型都有实现，正常不会走到这里。
     }
   }, [])

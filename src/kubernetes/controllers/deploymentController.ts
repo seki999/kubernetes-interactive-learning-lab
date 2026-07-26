@@ -18,6 +18,11 @@ import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { reconcileReplicaSet } from './replicaSetController'
 import { syncDeploymentStatus } from './statusSync'
 import type { Deployment, ReplicaSet } from '@/types/k8s'
+import {
+  recordTraceStep,
+  registerTraceResource,
+  resourceReference,
+} from '@/simulation/trace/traceManager'
 
 function createReplicaSet(
   deployment: Deployment,
@@ -71,6 +76,16 @@ function createReplicaSet(
     status: { replicas: 0, readyReplicas: 0, availableReplicas: 0 },
   }
   putResourceRaw(replicaSet)
+  registerTraceResource(replicaSet, deployment)
+  recordTraceStep({
+    resource: deployment,
+    component: 'deployment-controller',
+    action: 'CREATE_REPLICASET',
+    description: `Deployment Controller 创建 ReplicaSet ${replicaSetName}`,
+    input: { revision, replicas },
+    output: resourceReference(replicaSet),
+    relatedResources: [resourceReference(deployment), resourceReference(replicaSet)],
+  })
   emitEvent({
     involvedObject: {
       kind: 'ReplicaSet',
@@ -133,6 +148,13 @@ function normalizeReplicaSetRevisions(
  * 保留，从而提供 revision history 和 rollback。
  */
 export function reconcileDeployment(deployment: Deployment): void {
+  recordTraceStep({
+    resource: deployment,
+    component: 'deployment-controller',
+    action: 'RECONCILE_DEPLOYMENT',
+    description: 'Deployment Controller 收到资源变化并开始调谐',
+    input: { replicas: deployment.spec.replicas },
+  })
   const namespace = deployment.metadata.namespace
   let replicaSets = normalizeReplicaSetRevisions(ownedReplicaSets(deployment))
   const desiredHash = podTemplateHash(deployment.spec.template)

@@ -5,6 +5,7 @@ import { reconcileDeployment } from '@/kubernetes/controllers/deploymentControll
 import { reconcileServicesForNamespace } from '@/kubernetes/controllers/endpointController'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import type { Deployment, Pod, ReplicaSet } from '@/types/k8s'
+import { recordTraceStep } from '@/simulation/trace/traceManager'
 
 // 虚拟 Kubelet：Pod 被 Scheduler 分配到节点之后，负责把它从 Pending
 // 推进到 Running（模拟拉取镜像、启动容器），或者在镜像非法时进入
@@ -35,6 +36,13 @@ export function startKubeletForPod(podName: string, namespace: string | undefine
   if (!pod || !pod.status.nodeName) {
     return
   }
+  recordTraceStep({
+    resource: pod,
+    component: 'kubelet',
+    action: 'DISCOVER_POD',
+    description: `节点 ${pod.status.nodeName} 上的 Kubelet 发现新 Pod`,
+    input: { podName, nodeName: pod.status.nodeName },
+  })
 
   patchResourceRaw<Pod>('Pod', podName, namespace, (current) => ({
     ...current,
@@ -47,6 +55,13 @@ export function startKubeletForPod(podName: string, namespace: string | undefine
     message: `节点 ${pod.status.nodeName} 上的 Kubelet 开始拉取镜像`,
   })
   emitDomainEvent({ type: 'IMAGE_PULL_STARTED', payload: { podName, namespace } })
+  recordTraceStep({
+    resource: pod,
+    component: 'kubelet',
+    action: 'PULL_IMAGE',
+    description: 'Kubelet 开始拉取容器镜像',
+    input: { images: pod.spec.containers.map((container) => container.image) },
+  })
 
   setTimeout(() => {
     finishContainerCreation(podName, namespace)
@@ -92,6 +107,14 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
       type: 'POD_IMAGE_PULL_FAILED',
       payload: { podName, namespace, image: invalidContainer.image },
     })
+    recordTraceStep({
+      resource: current,
+      component: 'kubelet',
+      action: 'CREATE_CONTAINER',
+      description: 'Kubelet 创建容器失败',
+      status: 'failed',
+      error: `镜像 ${invalidContainer.image} 拉取失败`,
+    })
     continueDeploymentRollout(current, namespace)
     return
   }
@@ -111,6 +134,20 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
       })),
     },
   }))
+  recordTraceStep({
+    resource: current,
+    component: 'kubelet',
+    action: 'CREATE_CONTAINER',
+    description: 'Kubelet 创建并启动容器',
+    output: { containers: current.spec.containers.map((container) => container.name) },
+  })
+  recordTraceStep({
+    resource: current,
+    component: 'kubelet',
+    action: 'POD_RUNNING',
+    description: 'Pod 进入 Running 并通过就绪检查',
+    output: { phase: 'Running' },
+  })
   emitEvent({
     involvedObject: { kind: 'Pod', name: podName, namespace },
     type: 'Normal',
@@ -123,7 +160,7 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
   continueDeploymentRollout(current, namespace)
   // Pod 刚变为 Running/Ready，可能正好是某个 Service 一直在等待的后端，
   // 主动重新计算一次 Endpoints（见 endpointController.ts 的说明）。
-  reconcileServicesForNamespace(namespace)
+  reconcileServicesForNamespace(namespace, current)
 }
 
 /**
