@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { dump } from 'js-yaml'
 import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { deleteResource } from '@/kubernetes/api-server/apiServer'
@@ -22,13 +22,20 @@ const TABS: { key: TabKey; label: string }[] = [
 /** 资源详情面板：点击集群页面里的一行资源后，在右侧展示基本信息 / YAML / 状态 / Events。 */
 export function ResourceDetailPanel({ resource, onDeleted }: ResourceDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('info')
-  const events = useEtcdStore((state) =>
-    state.events.filter(
-      (event) =>
-        event.involvedObject.kind === resource.kind &&
-        event.involvedObject.name === resource.metadata.name &&
-        event.involvedObject.namespace === resource.metadata.namespace
-    )
+  // 注意：这里不能直接在 useEtcdStore 的 selector 里做 filter——
+  // 那样每次渲染都会返回一个新数组引用，会导致 "Maximum update depth exceeded" 无限循环
+  // （和 DesignerPage 之前出现过的问题是同一类 bug）。
+  // 正确做法是只订阅原始的 events 数组（引用稳定），过滤逻辑放到 useMemo 里。
+  const allEvents = useEtcdStore((state) => state.events)
+  const events = useMemo(
+    () =>
+      allEvents.filter(
+        (event) =>
+          event.involvedObject.kind === resource.kind &&
+          event.involvedObject.name === resource.metadata.name &&
+          event.involvedObject.namespace === resource.metadata.namespace
+      ),
+    [allEvents, resource.kind, resource.metadata.name, resource.metadata.namespace]
   )
 
   const handleDelete = () => {
