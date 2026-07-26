@@ -2,6 +2,13 @@ import type { KubernetesResource } from '@/types/k8s'
 
 const DNS_1123_NAME = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/
 
+function isNonNegativeIntOrPercent(value: unknown): boolean {
+  return (
+    (typeof value === 'number' && Number.isInteger(value) && value >= 0) ||
+    (typeof value === 'string' && (/^\d+$/.test(value) || /^\d+%$/.test(value)))
+  )
+}
+
 /**
  * 基础结构校验，对应需求文档第六节列出的常见错误提示。
  * 这里先实现创建/更新资源时必须满足的最基本规则；
@@ -45,6 +52,21 @@ export function validateResource(resource: KubernetesResource): string[] {
         errors.push(`第 ${index + 1} 个容器缺少 image`)
       }
     })
+    if (
+      resource.kind === 'Deployment' &&
+      resource.spec.strategy?.type === 'RollingUpdate'
+    ) {
+      const rolling = resource.spec.strategy.rollingUpdate
+      const surge = rolling?.maxSurge ?? resource.spec.strategy.maxSurge
+      const unavailable =
+        rolling?.maxUnavailable ?? resource.spec.strategy.maxUnavailable
+      if (surge !== undefined && !isNonNegativeIntOrPercent(surge)) {
+        errors.push('maxSurge 必须是非负整数或百分比（例如 25%）')
+      }
+      if (unavailable !== undefined && !isNonNegativeIntOrPercent(unavailable)) {
+        errors.push('maxUnavailable 必须是非负整数或百分比（例如 25%）')
+      }
+    }
   }
 
   if (resource.kind === 'Pod') {

@@ -40,10 +40,10 @@ describe('实验数据完整性', () => {
     }
   })
 
-  it('非交互实验（Ingress/HPA/RBAC/NetworkPolicy/回滚）如实标注 interactive: false', () => {
+  it('非交互实验（Ingress/HPA/RBAC/NetworkPolicy）如实标注 interactive: false', () => {
     const nonInteractive = LABS.filter((lab) => !lab.interactive)
     expect(nonInteractive.map((lab) => lab.id).sort()).toEqual(
-      ['configure-hpa', 'configure-network-policy', 'configure-rbac', 'create-ingress', 'rollback-deployment'].sort()
+      ['configure-hpa', 'configure-network-policy', 'configure-rbac', 'create-ingress'].sort()
     )
     for (const lab of nonInteractive) {
       expect(lab.check([])).toEqual(expect.objectContaining({ passed: false }))
@@ -291,7 +291,7 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
         template: { ...current.spec.template, spec: { containers: [{ name: 'web', image: 'nginx:1.28' }] } },
       },
     }))
-    await settle()
+    await settle(KUBELET_RUNNING_DELAY_MS * 3 + 50)
     expect(lab.check(allResources()).passed).toBe(true)
   })
 

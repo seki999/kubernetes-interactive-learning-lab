@@ -94,6 +94,40 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
         explanation: `Deployment ${event.payload.name} 副本数从 ${event.payload.fromReplicas} 变为 ${event.payload.toReplicas}`,
       }
     }
+    case 'DEPLOYMENT_ROLLOUT_STARTED':
+      return {
+        id: stepId,
+        nodeIds: [
+          buildResourceKey(
+            'ReplicaSet',
+            event.payload.replicaSetName,
+            event.payload.namespace
+          ),
+        ],
+        edgeIds: [],
+        explanation: `Deployment ${event.payload.name} 开始发布 Revision ${event.payload.revision}，新旧 ReplicaSet 暂时共存`,
+      }
+    case 'DEPLOYMENT_ROLLOUT_STEP':
+      return {
+        id: stepId,
+        nodeIds: [],
+        edgeIds: [],
+        explanation: `Revision ${event.payload.revision} 滚动中：新版本 ${event.payload.newReplicas}/${event.payload.desiredReplicas}，旧版本 ${event.payload.oldReplicas}`,
+      }
+    case 'DEPLOYMENT_ROLLOUT_COMPLETED':
+      return {
+        id: stepId,
+        nodeIds: [],
+        edgeIds: [],
+        explanation: `Deployment ${event.payload.name} 的 Revision ${event.payload.revision} 已全部就绪`,
+      }
+    case 'DEPLOYMENT_ROLLOUT_FAILED':
+      return {
+        id: stepId,
+        nodeIds: [],
+        edgeIds: [],
+        explanation: `Deployment ${event.payload.name} 的 Revision ${event.payload.revision} 发布失败，旧版本仍维持可用`,
+      }
     case 'SERVICE_ENDPOINTS_UPDATED': {
       const serviceId = buildResourceKey('Service', event.payload.name, event.payload.namespace)
       return {

@@ -1,9 +1,10 @@
 import { getResource, patchResourceRaw } from '@/kubernetes/api-server/objectStore'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { syncReplicaSetStatus } from '@/kubernetes/controllers/statusSync'
+import { reconcileDeployment } from '@/kubernetes/controllers/deploymentController'
 import { reconcileServicesForNamespace } from '@/kubernetes/controllers/endpointController'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
-import type { Pod } from '@/types/k8s'
+import type { Deployment, Pod, ReplicaSet } from '@/types/k8s'
 
 // 虚拟 Kubelet：Pod 被 Scheduler 分配到节点之后，负责把它从 Pending
 // 推进到 Running（模拟拉取镜像、启动容器），或者在镜像非法时进入
@@ -91,6 +92,7 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
       type: 'POD_IMAGE_PULL_FAILED',
       payload: { podName, namespace, image: invalidContainer.image },
     })
+    continueDeploymentRollout(current, namespace)
     return
   }
 
@@ -118,13 +120,38 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
   emitDomainEvent({ type: 'CONTAINER_STARTED', payload: { podName, namespace } })
   emitDomainEvent({ type: 'POD_READY', payload: { podName, namespace } })
 
-  const ownerReplicaSet = current.metadata.ownerReferences?.find(
-    (ref) => ref.kind === 'ReplicaSet'
-  )
-  if (ownerReplicaSet) {
-    syncReplicaSetStatus(ownerReplicaSet.name, namespace)
-  }
+  continueDeploymentRollout(current, namespace)
   // Pod 刚变为 Running/Ready，可能正好是某个 Service 一直在等待的后端，
   // 主动重新计算一次 Endpoints（见 endpointController.ts 的说明）。
   reconcileServicesForNamespace(namespace)
+}
+
+/**
+ * 新 Pod Ready（或明确失败）后重新唤醒 Deployment 控制器。
+ * 每次只推进一个受 maxSurge/maxUnavailable 约束的批次。
+ */
+function continueDeploymentRollout(
+  pod: Pod,
+  namespace: string | undefined
+): void {
+  const ownerReference = pod.metadata.ownerReferences?.find(
+    (reference) => reference.kind === 'ReplicaSet'
+  )
+  if (!ownerReference) return
+  syncReplicaSetStatus(ownerReference.name, namespace)
+  const replicaSet = getResource<ReplicaSet>(
+    'ReplicaSet',
+    ownerReference.name,
+    namespace
+  )
+  const deploymentReference = replicaSet?.metadata.ownerReferences?.find(
+    (reference) => reference.kind === 'Deployment'
+  )
+  if (!deploymentReference) return
+  const deployment = getResource<Deployment>(
+    'Deployment',
+    deploymentReference.name,
+    namespace
+  )
+  if (deployment) reconcileDeployment(deployment)
 }

@@ -11,11 +11,6 @@ export const runExec = (): CommandOutput =>
 export const runEdit = (): CommandOutput =>
   notImplemented('请前往"YAML 实验室"页面修改该资源的 YAML 并点击"应用配置"。')
 
-export const runRollout = (): CommandOutput =>
-  notImplemented(
-    '本模拟器的滚动更新是简化版（修改镜像会直接重建全部 Pod），没有实现 rollout 版本历史和回滚。'
-  )
-
 export const runAuth = (): CommandOutput =>
   notImplemented(
     '本模拟器尚未实现 RBAC（Role/RoleBinding/ServiceAccount），无法判断"某个身份能不能执行某个操作"，所有操作在这个虚拟集群里都不受权限限制。'

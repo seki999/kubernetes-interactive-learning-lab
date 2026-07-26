@@ -73,11 +73,11 @@ export function KubectlTerminal() {
         term.writeln(
           '  cordon, uncordon, drain, taint, label, annotate, config, api-resources, explain,'
         )
-        term.writeln('  version, cluster-info')
+        term.writeln('  version, cluster-info, rollout status/history/undo/restart')
         term.writeln(
           '尚未实现（会给出中文说明，不会假装支持）：exec、edit（引导去 YAML 编辑器）、'
         )
-        term.writeln('  rollout（简化版滚动更新，无版本历史/回滚）、auth（未实现 RBAC）、')
+        term.writeln('  auth（未实现 RBAC）、')
         term.writeln('  diff（引导去 YAML 编辑器的应用前差异预览）')
       } else if (command) {
         const result = runKubectlCommand(command)

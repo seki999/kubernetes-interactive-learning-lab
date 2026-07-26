@@ -14,7 +14,8 @@ import {
 } from './nodeOps'
 import { runConfig, runApiResources, runExplain, runVersion, runClusterInfo } from './metaCommands'
 import { runLogs, runTop } from './logsTop'
-import { runExec, runEdit, runRollout, runAuth, runDiff } from './notImplemented'
+import { runExec, runEdit, runAuth, runDiff } from './notImplemented'
+import { runRollout } from './rollout'
 import { fail, type CommandOutput } from './types'
 
 /**
@@ -88,7 +89,7 @@ export function runKubectlCommand(line: string): CommandOutput {
     case 'edit':
       return runEdit()
     case 'rollout':
-      return runRollout()
+      return runRollout(rest)
     case 'auth':
       return runAuth()
     case 'diff':

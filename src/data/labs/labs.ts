@@ -6,12 +6,15 @@
 // 都能被正确判定为"通过"。
 //
 // 诚实说明：Ingress / HPA / RBAC / NetworkPolicy 这几种资源类型，以及
-// Deployment 的滚动更新历史/回滚，当前虚拟集群尚未实现（见
-// src/kubernetes/controllers/reconcile.ts 的说明和"滚动更新和回滚"课程）。
+// Deployment 的滚动更新历史/回滚已经实现；Ingress / HPA / RBAC /
+// NetworkPolicy 等资源仍未实现（见"滚动更新和回滚"课程）。
 // 这些实验的 interactive 字段为 false，页面会如实提示"暂不支持自动检测"，
 // 只提供背景说明、参考 YAML 和排查思路，不假装可以自动判分。
 
-import { createResource } from '@/kubernetes/api-server/apiServer'
+import {
+  createResource,
+  updateResource,
+} from '@/kubernetes/api-server/apiServer'
 import type {
   ConfigMap,
   Deployment,
@@ -664,7 +667,7 @@ spec:
     goal: `把 web Deployment 的镜像更新为 nginx:1.28，并等待全部 Pod 使用新镜像且处于 Running。`,
     hints: [
       `kubectl set image deployment/web web=nginx:1.28`,
-      `本模拟器把滚动更新简化为整体重建（Recreate），不是真正按批次替换，详见"滚动更新和回滚"课程`,
+      `用 kubectl rollout status deployment/web 查看进度，并在拓扑图观察新旧 ReplicaSet`,
     ],
     initialSetup: () => {
       seedBasicCluster(1)
@@ -715,17 +718,63 @@ spec:
     index: 18,
     title: `执行版本回滚`,
     background: `刚才的镜像升级上线后发现有问题，需要回滚到上一个版本。`,
-    goal: `了解 kubectl rollout undo 的作用（本模拟器尚未实现滚动更新历史，暂不支持自动回滚检测）。`,
-    hints: [`本模拟器里，"回滚"目前只能手动把镜像字段改回旧值再次应用`],
-    initialSetup: () => seedBasicCluster(1),
-    check: () => ({
-      passed: false,
-      message: `本模拟器当前没有保存 Deployment 的历史版本，kubectl rollout undo 尚未实现，无法自动检测回滚结果。`,
-    }),
-    referenceYaml: `kubectl rollout undo deployment/web
-# 本模拟器暂不支持，可以手动把镜像改回旧版本再次应用作为替代方案`,
-    scoreOnSuccess: 0,
-    interactive: false,
+    goal: `使用 kubectl rollout undo 把 web 从 nginx:1.28 回滚到 nginx:1.27。`,
+    hints: [`先用 kubectl rollout history deployment/web 查看 Revision，再执行 rollout undo`],
+    initialSetup: () => {
+      seedBasicCluster(1)
+      createResource<Deployment>({
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata: {
+          uid: '',
+          name: 'web',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
+        spec: {
+          replicas: 2,
+          selector: { matchLabels: { app: 'web' } },
+          template: {
+            metadata: { labels: { app: 'web' } },
+            spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
+          },
+        },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          availableReplicas: 0,
+          updatedReplicas: 0,
+          condition: 'Progressing',
+        },
+      })
+      updateResource<Deployment>('Deployment', 'web', 'default', (current) => ({
+        ...current,
+        spec: {
+          ...current.spec,
+          template: {
+            ...current.spec.template,
+            spec: { containers: [{ name: 'web', image: 'nginx:1.28' }] },
+          },
+        },
+      }))
+    },
+    check: (resources) => {
+      const deployment = resources.find(
+        (resource): resource is Deployment =>
+          resource.kind === 'Deployment' && resource.metadata.name === 'web'
+      )
+      const rolledBack = deployment?.spec.template.spec.containers.some(
+        (container) => container.image === 'nginx:1.27'
+      )
+      return rolledBack
+        ? { passed: true, message: `web 已回滚到 nginx:1.27，新回滚版本正在滚动发布。` }
+        : { passed: false, message: `web 仍未回滚，请查看 rollout history 后执行 undo。` }
+    },
+    referenceYaml: `kubectl rollout history deployment/web
+kubectl rollout undo deployment/web`,
+    scoreOnSuccess: 100,
+    interactive: true,
   },
 
   {

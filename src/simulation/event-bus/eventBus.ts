@@ -45,6 +45,22 @@ export interface DeploymentScaledPayload {
   toReplicas: number
 }
 
+export interface DeploymentRolloutPayload {
+  name: string
+  namespace?: string
+  revision: number
+}
+
+export interface DeploymentRolloutStartedPayload extends DeploymentRolloutPayload {
+  replicaSetName: string
+}
+
+export interface DeploymentRolloutStepPayload extends DeploymentRolloutPayload {
+  newReplicas: number
+  oldReplicas: number
+  desiredReplicas: number
+}
+
 export interface ServiceEndpointsUpdatedPayload {
   name: string
   namespace?: string
@@ -88,6 +104,10 @@ export type DomainEvent =
   | { type: 'POD_READY'; payload: PodLifecyclePayload }
   | { type: 'POD_IMAGE_PULL_FAILED'; payload: PodImagePullFailedPayload }
   | { type: 'DEPLOYMENT_SCALED'; payload: DeploymentScaledPayload }
+  | { type: 'DEPLOYMENT_ROLLOUT_STARTED'; payload: DeploymentRolloutStartedPayload }
+  | { type: 'DEPLOYMENT_ROLLOUT_STEP'; payload: DeploymentRolloutStepPayload }
+  | { type: 'DEPLOYMENT_ROLLOUT_COMPLETED'; payload: DeploymentRolloutPayload }
+  | { type: 'DEPLOYMENT_ROLLOUT_FAILED'; payload: DeploymentRolloutPayload }
   | { type: 'SERVICE_ENDPOINTS_UPDATED'; payload: ServiceEndpointsUpdatedPayload }
   | { type: 'SERVICE_REQUEST_SIMULATED'; payload: ServiceRequestSimulatedPayload }
   | { type: 'PVC_BINDING_STARTED'; payload: PvcBindingPayload }

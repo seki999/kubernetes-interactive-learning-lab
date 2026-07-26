@@ -106,8 +106,9 @@ spec:
   replicas: 3
   strategy:
     type: RollingUpdate
-    maxSurge: 1
-    maxUnavailable: 1
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: learning-web

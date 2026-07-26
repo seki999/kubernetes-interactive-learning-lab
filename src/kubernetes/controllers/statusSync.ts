@@ -3,15 +3,13 @@ import {
   listResources,
   patchResourceRaw,
 } from '@/kubernetes/api-server/objectStore'
-import type { Pod, ReplicaSet, Deployment } from '@/types/k8s'
-
-// 状态聚合：根据当前 Pod 的真实状态，重新计算 ReplicaSet / Deployment 的
-// status.readyReplicas 等字段。
-//
-// 简化说明：真实 Kubernetes 通过 Informer/Watch 机制持续同步状态，
-// 这里没有实现完整的 watch 机制，而是在"可能影响状态"的操作之后
-// （Kubelet 更新 Pod 状态、ReplicaSet 控制器创建/删除 Pod 之后）
-// 主动调用一次同步函数。效果等价，但实现更直接、更容易测试。
+import {
+  ownedReplicaSets,
+  replicaSetRevision,
+} from '@/kubernetes/deployment/rollout'
+import { emitEvent } from '@/kubernetes/events/emitEvent'
+import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
+import type { Deployment, Pod, ReplicaSet } from '@/types/k8s'
 
 function isPodReady(pod: Pod): boolean {
   return (
@@ -21,15 +19,24 @@ function isPodReady(pod: Pod): boolean {
   )
 }
 
-export function syncReplicaSetStatus(name: string, namespace: string | undefined): void {
-  const rs = getResource<ReplicaSet>('ReplicaSet', name, namespace)
-  if (!rs) return
-
-  const ownedPods = listResources<Pod>('Pod', namespace).filter((pod) =>
-    pod.metadata.ownerReferences?.some(
-      (ref) => ref.kind === 'ReplicaSet' && ref.uid === rs.metadata.uid
+function podsOwnedBy(replicaSets: ReplicaSet[], namespace: string | undefined): Pod[] {
+  return listResources<Pod>('Pod', namespace).filter((pod) =>
+    replicaSets.some((replicaSet) =>
+      pod.metadata.ownerReferences?.some(
+        (reference) =>
+          reference.kind === 'ReplicaSet' && reference.uid === replicaSet.metadata.uid
+      )
     )
   )
+}
+
+export function syncReplicaSetStatus(
+  name: string,
+  namespace: string | undefined
+): void {
+  const replicaSet = getResource<ReplicaSet>('ReplicaSet', name, namespace)
+  if (!replicaSet) return
+  const ownedPods = podsOwnedBy([replicaSet], namespace)
   const readyReplicas = ownedPods.filter(isPodReady).length
 
   patchResourceRaw<ReplicaSet>('ReplicaSet', name, namespace, (current) => ({
@@ -42,44 +49,79 @@ export function syncReplicaSetStatus(name: string, namespace: string | undefined
     },
   }))
 
-  if (rs.metadata.ownerReferences) {
-    const deploymentRef = rs.metadata.ownerReferences.find(
-      (ref) => ref.kind === 'Deployment'
-    )
-    if (deploymentRef) {
-      syncDeploymentStatus(deploymentRef.name, namespace)
-    }
+  const deploymentReference = replicaSet.metadata.ownerReferences?.find(
+    (reference) => reference.kind === 'Deployment'
+  )
+  if (deploymentReference) {
+    syncDeploymentStatus(deploymentReference.name, namespace)
   }
 }
 
-export function syncDeploymentStatus(name: string, namespace: string | undefined): void {
+export function syncDeploymentStatus(
+  name: string,
+  namespace: string | undefined
+): void {
   const deployment = getResource<Deployment>('Deployment', name, namespace)
   if (!deployment) return
-
-  const ownedReplicaSets = listResources<ReplicaSet>('ReplicaSet', namespace).filter(
-    (rs) =>
-      rs.metadata.ownerReferences?.some(
-        (ref) => ref.kind === 'Deployment' && ref.uid === deployment.metadata.uid
-      )
-  )
-  const ownedPods = listResources<Pod>('Pod', namespace).filter((pod) =>
-    ownedReplicaSets.some((rs) =>
-      pod.metadata.ownerReferences?.some(
-        (ref) => ref.kind === 'ReplicaSet' && ref.uid === rs.metadata.uid
-      )
-    )
-  )
-  const readyReplicas = ownedPods.filter(isPodReady).length
+  const replicaSets = ownedReplicaSets(deployment)
+  const latest = [...replicaSets].sort(
+    (left, right) => replicaSetRevision(right) - replicaSetRevision(left)
+  )[0]
+  const allPods = podsOwnedBy(replicaSets, namespace)
+  const updatedPods = latest ? podsOwnedBy([latest], namespace) : []
+  const readyReplicas = allPods.filter(isPodReady).length
+  const updatedReadyReplicas = updatedPods.filter(isPodReady).length
+  const failed = updatedPods.some((pod) => pod.status.phase === 'ImagePullBackOff')
+  const oldReplicas = replicaSets
+    .filter((replicaSet) => replicaSet.metadata.uid !== latest?.metadata.uid)
+    .reduce((total, replicaSet) => total + replicaSet.spec.replicas, 0)
+  const complete =
+    latest !== undefined &&
+    latest.spec.replicas === deployment.spec.replicas &&
+    updatedReadyReplicas >= deployment.spec.replicas &&
+    oldReplicas === 0
+  const condition = failed ? 'Failed' : complete ? 'Available' : 'Progressing'
+  const revision = latest ? replicaSetRevision(latest) : 0
+  const previousCondition = deployment.status.condition
 
   patchResourceRaw<Deployment>('Deployment', name, namespace, (current) => ({
     ...current,
     status: {
       ...current.status,
-      replicas: ownedPods.length,
+      replicas: allPods.length,
       readyReplicas,
       availableReplicas: readyReplicas,
-      updatedReplicas: ownedPods.length,
-      condition: readyReplicas >= current.spec.replicas ? 'Available' : 'Progressing',
+      updatedReplicas: updatedPods.length,
+      condition,
+      revision,
+      reason: failed
+        ? 'ProgressDeadlineExceeded'
+        : complete
+          ? 'NewReplicaSetAvailable'
+          : 'ReplicaSetUpdated',
+      message: failed
+        ? `Revision ${revision} 的新 Pod 镜像拉取失败`
+        : complete
+          ? `Revision ${revision} 已成功发布`
+          : `正在发布 Revision ${revision}：${updatedReadyReplicas}/${deployment.spec.replicas} 个新 Pod 已就绪`,
     },
   }))
+
+  if (revision > 1 && previousCondition !== condition && condition !== 'Progressing') {
+    const completed = condition === 'Available'
+    emitEvent({
+      involvedObject: { kind: 'Deployment', name, namespace },
+      type: completed ? 'Normal' : 'Warning',
+      reason: completed ? 'Progressing' : 'ProgressDeadlineExceeded',
+      message: completed
+        ? `Deployment ${name} 的 Revision ${revision} 滚动更新完成`
+        : `Deployment ${name} 的 Revision ${revision} 滚动更新失败`,
+    })
+    emitDomainEvent({
+      type: completed
+        ? 'DEPLOYMENT_ROLLOUT_COMPLETED'
+        : 'DEPLOYMENT_ROLLOUT_FAILED',
+      payload: { name, namespace, revision },
+    })
+  }
 }

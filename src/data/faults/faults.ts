@@ -682,9 +682,9 @@ export const FAULTS: Fault[] = [
     id: 'deployment-update-failure',
     title: `Deployment 更新失败`,
     description: `Deployment 更新到了一个错误的镜像，新 Pod 全部卡在 ImagePullBackOff。`,
-    visualHint: `web Deployment 的 Pod 全部变为 ImagePullBackOff，readyReplicas 一直是 0。`,
-    troubleshooting: [`执行 kubectl rollout status deployment/web（本模拟器暂未实现该命令，可以直接用 kubectl get pods 观察）`, `执行 kubectl describe pod 查看具体镜像错误`],
-    fixAdvice: [`把镜像改回上一个可用版本`],
+    visualHint: `新 Revision 的 Pod 变为 ImagePullBackOff，旧 ReplicaSet 仍保留可用 Pod。`,
+    troubleshooting: [`执行 kubectl rollout status deployment/web 查看失败信息`, `执行 kubectl rollout history deployment/web 查看可回滚 Revision`, `执行 kubectl describe pod 查看具体镜像错误`],
+    fixAdvice: [`执行 kubectl rollout undo deployment/web 回滚到上一个可用版本`],
     interactive: true,
     inject: () => {
       seedBasicCluster(1)
@@ -704,7 +704,14 @@ export const FAULTS: Fault[] = [
       const pods = resources.filter(
         (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.labels?.app === 'web'
       )
-      return pods.length > 0 && pods.every((pod) => pod.status.phase === 'ImagePullBackOff')
+      const deployment = resources.find(
+        (resource): resource is Deployment =>
+          resource.kind === 'Deployment' && resource.metadata.name === 'web'
+      )
+      return (
+        deployment?.status.condition === 'Failed' &&
+        pods.some((pod) => pod.status.phase === 'ImagePullBackOff')
+      )
     },
     fix: () => {
       if (!getResource('Deployment', 'web', 'default')) return
@@ -714,6 +721,13 @@ export const FAULTS: Fault[] = [
           ...current.spec,
           template: {
             ...current.spec.template,
+            metadata: {
+              ...current.spec.template.metadata,
+              annotations: {
+                ...current.spec.template.metadata.annotations,
+                'deployment.kubernetes.io/recoveryAt': new Date().toISOString(),
+              },
+            },
             spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
           },
         },

@@ -131,11 +131,37 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
 
   replicaSets.forEach((replicaSet, index) => {
     const replicaSetId = resourceKeyOf(replicaSet)
+    const revision = Number(
+      replicaSet.metadata.annotations?.['deployment.kubernetes.io/revision'] ?? 0
+    )
+    const ownerReference = replicaSet.metadata.ownerReferences?.find(
+      (reference) => reference.kind === 'Deployment'
+    )
+    const siblingRevisions = replicaSets
+      .filter((candidate) =>
+        candidate.metadata.ownerReferences?.some(
+          (reference) =>
+            reference.kind === 'Deployment' &&
+            reference.uid === ownerReference?.uid
+        )
+      )
+      .map((candidate) =>
+        Number(
+          candidate.metadata.annotations?.['deployment.kubernetes.io/revision'] ?? 0
+        )
+      )
+    const isCurrentRevision = revision === Math.max(0, ...siblingRevisions)
     nodes.push({
       id: replicaSetId,
       position: { x: 280, y: 380 + index * 110 },
-      data: { label: `ReplicaSet\n${replicaSet.metadata.name}` },
-      style: nodeBoxStyle('#e0e7ff', '#4f46e5'),
+      data: {
+        label:
+          `ReplicaSet · Revision ${revision || 1}\n${replicaSet.metadata.name}\n` +
+          `${replicaSet.status.availableReplicas}/${replicaSet.spec.replicas} Available`,
+      },
+      style: isCurrentRevision
+        ? nodeBoxStyle('#dcfce7', '#16a34a')
+        : nodeBoxStyle('#f1f5f9', '#64748b'),
     })
     const owner = replicaSet.metadata.ownerReferences?.find(
       (reference) => reference.kind === 'Deployment'
@@ -179,8 +205,19 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
             candidate.metadata.uid === owner.uid || candidate.metadata.name === owner.name
         )
       : undefined
+    const revision =
+      replicaSet?.metadata.annotations?.['deployment.kubernetes.io/revision']
     if (replicaSet) {
       edges.push(edge(resourceKeyOf(replicaSet), podId))
+    }
+    if (revision) {
+      const node = nodes.find((candidate) => candidate.id === podId)
+      if (node) {
+        node.data = {
+          ...node.data,
+          label: `Pod · Revision ${revision}\n${pod.metadata.name}\n${pod.status.phase}`,
+        }
+      }
     }
   })
 

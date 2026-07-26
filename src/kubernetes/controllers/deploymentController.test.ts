@@ -154,7 +154,7 @@ describe('Deployment 控制器', () => {
     expect(pods[0].status.phase).toBe('ImagePullBackOff')
   })
 
-  it('修改镜像后会重建所有 Pod（简化版滚动更新，无 maxSurge 分批）', async () => {
+  it('修改镜像后会让新旧 ReplicaSet 共存，并按 maxSurge 分批替换 Pod', async () => {
     createWebDeployment(2)
     await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
     const oldPodNames = listResources<Pod>('Pod', 'default').map((pod) => pod.metadata.name)
@@ -170,15 +170,74 @@ describe('Deployment 控制器', () => {
       },
     }))
 
-    const newPods = listResources<Pod>('Pod', 'default')
-    expect(newPods).toHaveLength(2)
-    expect(newPods.every((pod) => !oldPodNames.includes(pod.metadata.name))).toBe(true)
-    expect(newPods.every((pod) => pod.spec.containers[0].image === 'nginx:1.28')).toBe(true)
-
-    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
+    const firstBatch = listResources<Pod>('Pod', 'default')
+    expect(firstBatch).toHaveLength(3)
+    expect(firstBatch.filter((pod) => oldPodNames.includes(pod.metadata.name))).toHaveLength(2)
+    expect(firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:1.28')).toHaveLength(1)
+    const replicaSetsDuringRollout = listResources<ReplicaSet>('ReplicaSet', 'default')
+    expect(replicaSetsDuringRollout).toHaveLength(2)
     expect(
-      listResources<Pod>('Pod', 'default').every((pod) => pod.status.phase === 'Running')
+      replicaSetsDuringRollout.map(
+        (replicaSet) =>
+          replicaSet.metadata.annotations?.['deployment.kubernetes.io/revision']
+      )
+    ).toEqual(expect.arrayContaining(['1', '2']))
+
+    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS * 3 + 100)
+    const finishedPods = listResources<Pod>('Pod', 'default')
+    expect(finishedPods).toHaveLength(2)
+    expect(
+      finishedPods.every(
+        (pod) =>
+          pod.status.phase === 'Running' &&
+          pod.spec.containers[0].image === 'nginx:1.28'
+      )
     ).toBe(true)
+    const retainedReplicaSets = listResources<ReplicaSet>('ReplicaSet', 'default')
+    expect(retainedReplicaSets).toHaveLength(2)
+    expect(retainedReplicaSets.find((replicaSet) =>
+      replicaSet.metadata.annotations?.['deployment.kubernetes.io/revision'] === '1'
+    )?.spec.replicas).toBe(0)
+    expect(getResource<Deployment>('Deployment', 'web', 'default')?.status).toMatchObject({
+      condition: 'Available',
+      revision: 2,
+      updatedReplicas: 2,
+    })
+  })
+
+  it('支持百分比 maxSurge/maxUnavailable，并在新镜像失败时保留旧版本可用', async () => {
+    const deployment = createWebDeployment(4)
+    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
+    updateResource<Deployment>('Deployment', 'web', 'default', (current) => ({
+      ...current,
+      spec: {
+        ...current.spec,
+        strategy: {
+          type: 'RollingUpdate',
+          rollingUpdate: { maxSurge: '25%', maxUnavailable: '25%' },
+        },
+        template: {
+          ...current.spec.template,
+          spec: { containers: [{ name: 'web', image: 'nginx:not-exist' }] },
+        },
+      },
+    }))
+
+    const firstBatch = listResources<Pod>('Pod', 'default')
+    expect(firstBatch).toHaveLength(4)
+    expect(firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:1.27')).toHaveLength(3)
+    expect(firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:not-exist')).toHaveLength(1)
+
+    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS * 2 + 50)
+    expect(getResource<Deployment>('Deployment', 'web', 'default')?.status.condition).toBe('Failed')
+    expect(
+      listResources<Pod>('Pod', 'default').filter(
+        (pod) =>
+          pod.spec.containers[0].image === 'nginx:1.27' &&
+          pod.status.phase === 'Running'
+      ).length
+    ).toBeGreaterThanOrEqual(3)
+    expect(deployment.metadata.name).toBe('web')
   })
 
   it('删除 Deployment 会级联删除 ReplicaSet 和 Pod', async () => {

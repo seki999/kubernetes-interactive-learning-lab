@@ -10,17 +10,7 @@ import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
 import { syncReplicaSetStatus } from './statusSync'
 import type { Pod, ReplicaSet } from '@/types/k8s'
 
-/**
- * ReplicaSet 控制器：让实际存在的 Pod 数量收敛到 spec.replicas，
- * 并在 Pod 模板发生变化时重建 Pod（简化版"滚动更新"）。
- *
- * 简化说明：真实 Kubernetes 的滚动更新会保留旧/新两个 ReplicaSet，
- * 按 maxSurge/maxUnavailable 逐步替换 Pod，并保留版本历史支持
- * kubectl rollout undo 回滚。这里只维护一个 ReplicaSet（见
- * deploymentController.ts 的说明），检测到 Pod 实际 spec 和模板不一致时，
- * 直接把这些"旧版本" Pod 一次性删除、重新创建（等价于 Recreate 策略），
- * 不是真正按批次滚动、也不保留历史版本用于回滚。
- */
+/** ReplicaSet 控制器：让实际 Pod 数量收敛到 spec.replicas。 */
 export function reconcileReplicaSet(replicaSet: ReplicaSet): void {
   const namespace = replicaSet.metadata.namespace
   const ownedPods = listResources<Pod>('Pod', namespace).filter(
@@ -57,6 +47,7 @@ export function reconcileReplicaSet(replicaSet: ReplicaSet): void {
           name: podName,
           namespace,
           labels: replicaSet.spec.template.metadata.labels,
+          annotations: replicaSet.spec.template.metadata.annotations,
           ownerReferences: [
             {
               apiVersion: replicaSet.apiVersion,

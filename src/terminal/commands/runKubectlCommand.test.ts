@@ -103,10 +103,44 @@ describe('runKubectlCommand', () => {
     ).toBe(true)
   })
 
-  it('exec / edit / rollout 明确返回尚未实现', () => {
+  it('exec / edit 明确返回尚未实现', () => {
     expect(runKubectlCommand('kubectl exec web -- bash').isError).toBe(true)
     expect(runKubectlCommand('kubectl edit deployment web').isError).toBe(true)
-    expect(runKubectlCommand('kubectl rollout status deployment/web').isError).toBe(true)
+  })
+
+  it('rollout status/history/undo/restart 使用真实 Revision 历史', async () => {
+    runKubectlCommand('kubectl create deployment web --image=nginx:1.27 --replicas=2')
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(
+      runKubectlCommand('kubectl rollout status deployment/web').lines[0]
+    ).toContain('successfully rolled out')
+    expect(
+      runKubectlCommand('kubectl rollout history deployment/web').lines
+    ).toEqual(expect.arrayContaining(['1         Initial deployment']))
+
+    runKubectlCommand('kubectl set image deployment/web web=nginx:1.28')
+    await vi.advanceTimersByTimeAsync(2000)
+    const revisionTwo = runKubectlCommand(
+      'kubectl rollout history deployment/web --revision=2'
+    )
+    expect(revisionTwo.lines).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('revision #2'),
+        expect.stringContaining('web=nginx:1.28'),
+      ])
+    )
+
+    expect(
+      runKubectlCommand('kubectl rollout undo deployment/web').lines[0]
+    ).toContain('rolled back')
+    await vi.advanceTimersByTimeAsync(2000)
+    const history = runKubectlCommand('kubectl rollout history deployment/web')
+    expect(history.lines.some((line) => line.includes('Rollback to revision 1'))).toBe(true)
+
+    expect(
+      runKubectlCommand('kubectl rollout restart deployment/web').lines[0]
+    ).toContain('restarted')
   })
 
   it('cordon 后节点无法调度新 Pod', () => {

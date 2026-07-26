@@ -2,7 +2,10 @@ import type { ObjectMeta, LabelSelector } from './meta'
 import type { PodSpec } from './pod'
 
 export interface PodTemplateSpec {
-  metadata: { labels?: Record<string, string> }
+  metadata: {
+    labels?: Record<string, string>
+    annotations?: Record<string, string>
+  }
   spec: PodSpec
 }
 

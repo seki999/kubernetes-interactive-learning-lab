@@ -1662,8 +1662,8 @@ spec:
     title: `滚动更新和回滚`,
     objectives: [
       `理解修改镜像会触发滚动更新`,
-      `了解真实 Kubernetes 的 maxSurge/maxUnavailable 分批策略`,
-      `理解本模拟器对滚动更新做了哪些简化`,
+      `掌握 maxSurge/maxUnavailable 分批策略`,
+      `使用 rollout history/status/undo/restart 管理版本`,
     ],
     concept: [
       `真实 Kubernetes 更新 Deployment 的镜像时，会创建一个新的 ReplicaSet，
@@ -1671,27 +1671,26 @@ spec:
 不可用）逐步用新 ReplicaSet 的 Pod 替换旧 ReplicaSet 的 Pod，整个过程中
 新旧版本共存、旧版本历史被保留，因此可以用 kubectl rollout undo 回滚到
 之前的版本。`,
-      `诚实说明：本模拟器为了控制实现复杂度，把"滚动更新"简化成了 Recreate
-语义——检测到 Pod 模板变化（例如镜像变了）时，一次性删除所有旧 Pod、
-重新创建新 Pod，不是真正按批次替换，也不保留历史版本。因此
-kubectl rollout status/history/undo 这几个命令在终端里会明确提示
-"尚未实现"，而不是伪造一个假结果。想要"回滚"，目前只能手动把镜像字段
-改回旧值再次应用。`,
+      `本实验室会为每次 Pod 模板变化创建带 Revision 的新 ReplicaSet，并按
+maxSurge/maxUnavailable（支持整数和百分比）逐批扩新缩旧。旧 ReplicaSet
+缩容到 0 后仍会保留，因此可以查看历史或回滚到上一版/指定 Revision。`,
     ],
     diagram: [
       { label: `修改镜像`, description: `Deployment spec.template 变化` },
-      { label: `ReplicaSet`, description: `检测到模板差异` },
-      { label: `旧 Pod 删除`, description: `简化为一次性重建，非分批替换` },
-      { label: `新 Pod 创建`, description: `携带新镜像启动` },
+      { label: `新 ReplicaSet`, description: `创建新的 Revision` },
+      { label: `分批替换`, description: `受 maxSurge/maxUnavailable 约束` },
+      { label: `完成/回滚`, description: `旧 ReplicaSet 保留为 0 副本历史` },
     ],
     steps: [
       `确保 web Deployment 存在且处于 Running 状态`,
       `执行 kubectl set image deployment/web web=nginx:1.28`,
-      `观察旧 Pod 消失、新 Pod 以新镜像重新创建并变为 Running`,
+      `在拓扑图观察新旧 ReplicaSet 共存，使用 rollout status 查看进度`,
     ],
     commandExamples: [
       `kubectl set image deployment/web web=nginx:1.28`,
       `kubectl rollout status deployment/web`,
+      `kubectl rollout history deployment/web`,
+      `kubectl rollout undo deployment/web --to-revision=1`,
     ],
     verification: {
       instruction: `把 web Deployment 的容器镜像修改为 nginx:1.28 并应用，等待所有 Pod 变为 Running`,
@@ -1714,20 +1713,20 @@ kubectl rollout status/history/undo 这几个命令在终端里会明确提示
     },
     quiz: [
       {
-        question: `本模拟器的"滚动更新"和真实 Kubernetes 相比，简化了什么？`,
+        question: `maxSurge: 1 的含义是什么？`,
         options: [
-          `没有任何简化，行为完全一致`,
-          `简化为一次性重建全部 Pod（Recreate），不按批次替换、不保留历史版本用于回滚`,
-          `简化为完全不重建 Pod`,
-          `只是动画效果不同，底层行为一致`,
+          `更新时最多允许比期望副本数多 1 个 Pod`,
+          `最多只能创建 1 个 Revision`,
+          `必须先删除全部旧 Pod`,
+          `最多允许 1 个 Pod 不可用`,
         ],
-        correctIndex: 1,
-        explanation: `这在本课和终端里都有明确标注，kubectl rollout 相关命令也如实提示"尚未实现"。`,
+        correctIndex: 0,
+        explanation: `maxSurge 控制滚动更新期间可临时超过期望副本数的上限。`,
       },
     ],
-    commonMistakes: [`在本模拟器里尝试用 kubectl rollout undo 回滚，误以为是终端 Bug——其实是刻意标注的"尚未实现"`],
-    summary: `滚动更新的核心思想是"新旧版本共存、逐步替换"，本模拟器简化为一次性
-重建。想要真正体验分批滚动和回滚历史，需要在真实 Kubernetes 集群中实践。`,
+    commonMistakes: [`把 maxSurge 和 maxUnavailable 混淆，导致更新期间容量或可用性不符合预期`],
+    summary: `滚动更新通过新旧 ReplicaSet 共存、逐批替换来保持服务可用；Revision
+历史使 status、history、undo 和 restart 形成完整的发布管理闭环。`,
   },
 
   {

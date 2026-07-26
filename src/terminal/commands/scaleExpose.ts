@@ -6,6 +6,7 @@ import {
 import { parseArgs, resolveNamespace, toStringFlag } from '@/terminal/parser/parseArgs'
 import { fail, formatApiServerError, ok, type CommandOutput } from './types'
 import type { Deployment, Service, ServiceType } from '@/types/k8s'
+import { CHANGE_CAUSE_ANNOTATION } from '@/kubernetes/deployment/rollout'
 
 /** 把 "deployment/web" 或 "deployment web" 这两种写法都解析成资源类型 + 名称。 */
 function splitKindSlashName(
@@ -113,10 +114,29 @@ export function runSetImage(argv: string[]): CommandOutput {
   }
   const [containerName, image] = containerImagePair.split('=')
   const namespace = resolveNamespace(flags)
+  const deployment = getResource<Deployment>('Deployment', target.name, namespace)
+  if (!deployment) {
+    return fail([
+      `Error from server (NotFound): deployments.apps "${target.name}" not found`,
+    ])
+  }
+  if (!deployment.spec.template.spec.containers.some(
+    (container) => container.name === containerName
+  )) {
+    return fail([`error: unable to find container named "${containerName}"`])
+  }
 
   try {
     updateResource<Deployment>('Deployment', target.name, namespace, (current) => ({
       ...current,
+      metadata: {
+        ...current.metadata,
+        annotations: {
+          ...current.metadata.annotations,
+          [CHANGE_CAUSE_ANNOTATION]:
+            `kubectl set image ${containerName}=${image}`,
+        },
+      },
       spec: {
         ...current.spec,
         template: {
