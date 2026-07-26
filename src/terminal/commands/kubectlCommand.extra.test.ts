@@ -188,6 +188,23 @@ describe('runKubectlCommand - config / api-resources / explain', () => {
     expect(result.lines[0]).toContain('KIND:     Pod')
     expect(result.lines.some((line) => line.includes('最小的可部署单元'))).toBe(true)
   })
+
+  it('version 返回模拟版本号，且明确标注是模拟数据', () => {
+    const result = runKubectlCommand('kubectl version')
+    expect(result.isError).toBeFalsy()
+    expect(result.lines.some((line) => line.includes('Client Version'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('Server Version'))).toBe(true)
+    expect(result.lines.every((line) => line.includes('模拟'))).toBe(true)
+  })
+
+  it('cluster-info 展示当前 Node 数量，且明确标注不连接真实集群', () => {
+    const result = runKubectlCommand('kubectl cluster-info')
+    expect(result.isError).toBeFalsy()
+    expect(result.lines.some((line) => line.includes('1 个 Node'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('不连接任何真实 Kubernetes 集群'))).toBe(
+      true
+    )
+  })
 })
 
 describe('runKubectlCommand - logs', () => {

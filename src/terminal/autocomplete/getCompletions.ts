@@ -22,6 +22,8 @@ export const SUBCOMMANDS = [
   'config',
   'api-resources',
   'explain',
+  'version',
+  'cluster-info',
   'exec',
   'edit',
   'rollout',

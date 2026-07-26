@@ -71,8 +71,9 @@ export function KubectlTerminal() {
           '  get, describe, create, apply, delete, expose, scale, set image, logs, top,'
         )
         term.writeln(
-          '  cordon, uncordon, drain, taint, label, annotate, config, api-resources, explain'
+          '  cordon, uncordon, drain, taint, label, annotate, config, api-resources, explain,'
         )
+        term.writeln('  version, cluster-info')
         term.writeln(
           '尚未实现：exec、edit（引导去 YAML 编辑器）、rollout（计划在后续阶段实现）'
         )

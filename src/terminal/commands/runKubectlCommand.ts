@@ -12,7 +12,7 @@ import {
   runLabel,
   runAnnotate,
 } from './nodeOps'
-import { runConfig, runApiResources, runExplain } from './metaCommands'
+import { runConfig, runApiResources, runExplain, runVersion, runClusterInfo } from './metaCommands'
 import { runLogs, runTop } from './logsTop'
 import { runExec, runEdit, runRollout } from './notImplemented'
 import { fail, type CommandOutput } from './types'
@@ -79,6 +79,10 @@ export function runKubectlCommand(line: string): CommandOutput {
       return runApiResources()
     case 'explain':
       return runExplain(rest)
+    case 'version':
+      return runVersion()
+    case 'cluster-info':
+      return runClusterInfo()
     case 'exec':
       return runExec()
     case 'edit':

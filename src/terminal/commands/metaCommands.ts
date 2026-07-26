@@ -1,8 +1,31 @@
+import { listResources } from '@/kubernetes/api-server/objectStore'
 import { formatTable } from '@/terminal/formatter/table'
 import { KIND_ALIASES } from './kindAliases'
 import { ok, fail, type CommandOutput } from './types'
+import type { Node } from '@/types/k8s'
 
 const VIRTUAL_CONTEXT_NAME = 'k8s-lab-virtual-cluster'
+/** 只是模拟输出里展示的版本号，不代表本项目真的对齐这个 Kubernetes 版本的行为细节。 */
+const SIMULATED_K8S_VERSION = 'v1.31.0'
+
+/** kubectl version：固定输出一个模拟版本号，明确标注这是模拟数据，不查询任何真实服务器。 */
+export function runVersion(): CommandOutput {
+  return ok([
+    `Client Version: ${SIMULATED_K8S_VERSION}（模拟）`,
+    `Server Version: ${SIMULATED_K8S_VERSION}（模拟，浏览器本地虚拟集群，不是真实 Kubernetes API Server）`,
+  ])
+}
+
+/** kubectl cluster-info：展示虚拟"控制平面"信息和当前 Node 数量，同样明确标注是模拟数据。 */
+export function runClusterInfo(): CommandOutput {
+  const nodeCount = listResources<Node>('Node').length
+  return ok([
+    'Kubernetes 控制平面（模拟）正在浏览器本地内存中运行',
+    `当前虚拟集群共有 ${nodeCount} 个 Node（可用 kubectl get nodes 查看详情）`,
+    '',
+    '（本项目不连接任何真实 Kubernetes 集群，这里的地址和组件都是模拟展示）',
+  ])
+}
 
 export function runConfig(argv: string[]): CommandOutput {
   const [subcommand] = argv
