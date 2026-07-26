@@ -57,6 +57,7 @@ export type KubernetesResource =
 export const CLUSTER_SCOPED_KINDS: ReadonlySet<ResourceKind> = new Set([
   'Node',
   'Namespace',
+  'PersistentVolume',
 ])
 
 export function isClusterScoped(kind: ResourceKind): boolean {

@@ -17,7 +17,7 @@ export interface ObjectMeta {
   /** 资源全局唯一 ID，由虚拟 API Server 在创建时生成，用户不可见/不可编辑。 */
   uid: string
   name: string
-  /** 集群级资源（如 Node、Namespace）没有 namespace 字段。 */
+  /** 集群级资源（如 Node、Namespace、PersistentVolume）没有 namespace 字段。 */
   namespace?: string
   labels?: Record<string, string>
   annotations?: Record<string, string>

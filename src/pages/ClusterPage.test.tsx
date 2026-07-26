@@ -30,4 +30,54 @@ describe('ClusterPage：点击资源行展示详情面板', () => {
     expect(screen.getByText('UID')).toBeInTheDocument()
     expect(screen.getByText('删除')).toBeInTheDocument()
   })
+
+  it('切换下拉框时展示每一种资源的概念和关联关系', async () => {
+    useEtcdStore.getState().resetCluster()
+    ensureDefaultClusterSeed()
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <ClusterPage />
+      </MemoryRouter>
+    )
+
+    const kindSelect = screen.getByRole('combobox', { name: '资源类型' })
+    const expectedHeadings = [
+      ['Pod', '关于 Pod'],
+      ['Deployment', '关于 Deployment'],
+      ['ReplicaSet', '关于 ReplicaSet'],
+      ['Service', '关于 Service'],
+      ['Endpoints', '关于 Endpoints'],
+      ['Node', '关于 Node'],
+      ['Namespace', '关于 Namespace'],
+      ['ConfigMap', '关于 ConfigMap'],
+      ['Secret', '关于 Secret'],
+      ['PersistentVolumeClaim', '关于 PersistentVolumeClaim (PVC)'],
+      ['PersistentVolume', '关于 PersistentVolume (PV)'],
+    ]
+
+    for (const [value, heading] of expectedHeadings) {
+      await user.selectOptions(kindSelect, value)
+      expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
+      expect(screen.getByText('与其他概念的关系')).toBeInTheDocument()
+    }
+  })
+
+  it('PV 是集群级资源，选中后不显示命名空间筛选框', async () => {
+    useEtcdStore.getState().resetCluster()
+    ensureDefaultClusterSeed()
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <ClusterPage />
+      </MemoryRouter>
+    )
+
+    await user.selectOptions(screen.getByRole('combobox', { name: '资源类型' }), [
+      'PersistentVolume',
+    ])
+
+    expect(screen.getByText('集群级')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: '命名空间' })).not.toBeInTheDocument()
+  })
 })
