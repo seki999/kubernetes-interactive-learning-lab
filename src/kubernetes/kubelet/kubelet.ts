@@ -11,6 +11,7 @@ import {
   finishJobPod,
   JOB_COMPLETION_DELAY_MS,
 } from '@/kubernetes/controllers/jobController'
+import { syncDaemonSetStatusForPod } from '@/kubernetes/controllers/daemonSetController'
 
 // 虚拟 Kubelet：Pod 被 Scheduler 分配到节点之后，负责把它从 Pending
 // 推进到 Running（模拟拉取镜像、启动容器），或者在镜像非法时进入
@@ -121,6 +122,7 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
       error: `镜像 ${invalidContainer.image} 拉取失败`,
     })
     if (failJobPod(podName, namespace)) return
+    syncDaemonSetStatusForPod(current)
     continueDeploymentRollout(current, namespace)
     return
   }
@@ -172,6 +174,7 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
     )
   }
 
+  syncDaemonSetStatusForPod(current)
   continueDeploymentRollout(current, namespace)
   // Pod 刚变为 Running/Ready，可能正好是某个 Service 一直在等待的后端，
   // 主动重新计算一次 Endpoints（见 endpointController.ts 的说明）。

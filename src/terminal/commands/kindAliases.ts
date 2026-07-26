@@ -39,6 +39,9 @@ export const KIND_ALIASES: Record<string, ResourceKind> = {
   cronjob: 'CronJob',
   cronjobs: 'CronJob',
   cj: 'CronJob',
+  daemonset: 'DaemonSet',
+  daemonsets: 'DaemonSet',
+  ds: 'DaemonSet',
 }
 
 /** kubectl get all 会展示的资源类型（贴近真实 kubectl 的默认范围）。 */
@@ -47,5 +50,6 @@ export const GET_ALL_KINDS: ResourceKind[] = [
   'Service',
   'Deployment',
   'ReplicaSet',
+  'DaemonSet',
   'Job',
 ]

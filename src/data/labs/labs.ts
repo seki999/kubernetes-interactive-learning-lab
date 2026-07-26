@@ -17,6 +17,7 @@ import {
 } from '@/kubernetes/api-server/apiServer'
 import type {
   ConfigMap,
+  DaemonSet,
   Deployment,
   Endpoints,
   Node,
@@ -1249,6 +1250,59 @@ spec:
           containers:
             - name: report
               image: busybox:1.36`,
+    scoreOnSuccess: 100,
+    interactive: true,
+  },
+  {
+    id: 'deploy-fluent-bit-daemonset',
+    index: 28,
+    title: `部署 Fluent Bit 日志 Agent（DaemonSet）`,
+    background: `运维团队希望每一台 Node 上都运行一个日志采集 Agent，把这台机器上所有容器的日志统一转发出去——这类"每节点一个"的需求不适合用 Deployment（副本数和 Node 数量没有关系），应该用 DaemonSet。`,
+    goal: `创建名为 fluent-bit 的 DaemonSet，使用 fluent/fluent-bit:2.2 镜像，让集群里每一个 Node 都运行且仅运行一个 Ready 的 Pod。`,
+    hints: [
+      `DaemonSet 不需要设置 replicas，它会根据集群里符合条件的 Node 数量自动决定 Pod 数量`,
+      `用 kubectl get daemonsets 或 kubectl describe daemonset fluent-bit 观察 DESIRED/CURRENT/READY 是否一致`,
+    ],
+    initialSetup: () => seedBasicCluster(3),
+    check: (resources) => {
+      const daemonSet = resources.find(
+        (resource): resource is DaemonSet =>
+          resource.kind === 'DaemonSet' && resource.metadata.name === 'fluent-bit'
+      )
+      if (!daemonSet) return { passed: false, message: `还没有找到 fluent-bit DaemonSet。` }
+      const nodeCount = resources.filter((resource) => resource.kind === 'Node').length
+      const { desiredNumberScheduled, numberReady } = daemonSet.status
+      if (desiredNumberScheduled !== nodeCount) {
+        return {
+          passed: false,
+          message: `集群里共有 ${nodeCount} 个 Node，但 desiredNumberScheduled 是 ${desiredNumberScheduled}，请检查 nodeSelector 或 Taint/Toleration 设置是否漏掉了某些 Node。`,
+        }
+      }
+      if (numberReady < desiredNumberScheduled) {
+        return {
+          passed: false,
+          message: `${numberReady}/${desiredNumberScheduled} 个 Pod 已就绪，请再等待一下。`,
+        }
+      }
+      return { passed: true, message: `fluent-bit 已经在全部 ${nodeCount} 个 Node 上就绪运行！` }
+    },
+    referenceYaml: `apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: fluent-bit
+  template:
+    metadata:
+      labels:
+        app: fluent-bit
+    spec:
+      containers:
+        - name: fluent-bit
+          image: fluent/fluent-bit:2.2`,
     scoreOnSuccess: 100,
     interactive: true,
   },

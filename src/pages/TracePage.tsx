@@ -20,6 +20,7 @@ const COMPONENTS: TraceComponent[] = [
   'node-controller',
   'job-controller',
   'cronjob-controller',
+  'daemonset-controller',
 ]
 
 function duration(startedAt?: number, finishedAt?: number): string {

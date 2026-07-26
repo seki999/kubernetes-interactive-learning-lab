@@ -5,7 +5,7 @@ import {
 } from '@/kubernetes/api-server/apiServer'
 import { parseArgs, resolveNamespace, toStringFlag } from '@/terminal/parser/parseArgs'
 import { fail, formatApiServerError, ok, type CommandOutput } from './types'
-import type { Deployment, Service, ServiceType } from '@/types/k8s'
+import type { DaemonSet, Deployment, Service, ServiceType } from '@/types/k8s'
 import { CHANGE_CAUSE_ANNOTATION } from '@/kubernetes/deployment/rollout'
 
 /** 把 "deployment/web" 或 "deployment web" 这两种写法都解析成资源类型 + 名称。 */
@@ -106,14 +106,21 @@ export function runSetImage(argv: string[]): CommandOutput {
   const target = splitKindSlashName(positional[0])
   const containerImagePair = positional[1]
   if (
-    target?.kind !== 'deployment' ||
+    (target?.kind !== 'deployment' && target?.kind !== 'daemonset') ||
     !containerImagePair ||
     !containerImagePair.includes('=')
   ) {
-    return fail(['error: 用法：kubectl set image deployment/<名称> <容器名>=<镜像>'])
+    return fail([
+      'error: 用法：kubectl set image deployment/<名称> <容器名>=<镜像>，或 kubectl set image daemonset/<名称> <容器名>=<镜像>',
+    ])
   }
   const [containerName, image] = containerImagePair.split('=')
   const namespace = resolveNamespace(flags)
+
+  if (target.kind === 'daemonset') {
+    return setDaemonSetImage(target.name, namespace, containerName, image)
+  }
+
   const deployment = getResource<Deployment>('Deployment', target.name, namespace)
   if (!deployment) {
     return fail([
@@ -151,6 +158,45 @@ export function runSetImage(argv: string[]): CommandOutput {
       },
     }))
     return ok([`deployment.apps/${target.name} image updated`])
+  } catch (error) {
+    return fail([formatApiServerError(error)])
+  }
+}
+
+function setDaemonSetImage(
+  name: string,
+  namespace: string | undefined,
+  containerName: string,
+  image: string
+): CommandOutput {
+  const daemonSet = getResource<DaemonSet>('DaemonSet', name, namespace)
+  if (!daemonSet) {
+    return fail([`Error from server (NotFound): daemonsets.apps "${name}" not found`])
+  }
+  if (
+    !daemonSet.spec.template.spec.containers.some(
+      (container) => container.name === containerName
+    )
+  ) {
+    return fail([`error: unable to find container named "${containerName}"`])
+  }
+  try {
+    updateResource<DaemonSet>('DaemonSet', name, namespace, (current) => ({
+      ...current,
+      spec: {
+        ...current.spec,
+        template: {
+          ...current.spec.template,
+          spec: {
+            ...current.spec.template.spec,
+            containers: current.spec.template.spec.containers.map((container) =>
+              container.name === containerName ? { ...container, image } : container
+            ),
+          },
+        },
+      },
+    }))
+    return ok([`daemonset.apps/${name} image updated`])
   } catch (error) {
     return fail([formatApiServerError(error)])
   }

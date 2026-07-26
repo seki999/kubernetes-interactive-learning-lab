@@ -12,6 +12,7 @@ const NAME_PREFIX_BY_KIND: Partial<Record<ResourceKind, string>> = {
   Service: 'service/',
   Deployment: 'deployment.apps/',
   ReplicaSet: 'replicaset.apps/',
+  DaemonSet: 'daemonset.apps/',
 }
 
 export function runGet(argv: string[]): CommandOutput {

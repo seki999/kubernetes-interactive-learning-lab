@@ -14,6 +14,7 @@ export type TraceComponent =
   | 'node-controller'
   | 'job-controller'
   | 'cronjob-controller'
+  | 'daemonset-controller'
 
 export interface ResourceReference {
   kind: string

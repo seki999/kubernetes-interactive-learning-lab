@@ -30,8 +30,16 @@ export function reconcileNode(node: Node): void {
 
   emitDomainEvent({ type: 'NODE_NOT_READY', payload: { nodeName: node.metadata.name } })
 
+  // DaemonSet 拥有的 Pod 不在这里处理：它们和 Node 是一一绑定的，不应该被
+  // 当成普通 Pod 那样"重新调度到别的 Node"，那样会破坏 DaemonSet"每个符合
+  // 条件的 Node 精确一个 Pod"的约束。它们的去留交给 DaemonSet Controller
+  // 处理（reconcile.ts 会在 Node 变化时调用 reconcileDaemonSetsForNodeChange，
+  // Node 变为 NotReady 后不再满足调度条件，对应 Pod 会被那边清理）。
   const affectedPods = listResources<Pod>('Pod').filter(
-    (pod) => pod.status.nodeName === node.metadata.name && !pod.metadata.deletionTimestamp
+    (pod) =>
+      pod.status.nodeName === node.metadata.name &&
+      !pod.metadata.deletionTimestamp &&
+      !pod.metadata.ownerReferences?.some((reference) => reference.kind === 'DaemonSet')
   )
   const affectedNamespaces = new Set(affectedPods.map((pod) => pod.metadata.namespace))
 

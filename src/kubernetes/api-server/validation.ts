@@ -33,7 +33,11 @@ export function validateResource(resource: KubernetesResource): string[] {
     )
   }
 
-  if (resource.kind === 'Deployment' || resource.kind === 'ReplicaSet') {
+  if (
+    resource.kind === 'Deployment' ||
+    resource.kind === 'ReplicaSet' ||
+    resource.kind === 'DaemonSet'
+  ) {
     const matchLabels = resource.spec.selector?.matchLabels
     if (!matchLabels || Object.keys(matchLabels).length === 0) {
       errors.push(`${resource.kind} 必须设置 selector`)

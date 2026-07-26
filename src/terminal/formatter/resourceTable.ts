@@ -13,6 +13,7 @@ import type {
   Service,
   Job,
   CronJob,
+  DaemonSet,
 } from '@/types/k8s'
 
 /**
@@ -38,6 +39,13 @@ export function formatResourceTable(
   }
 
   return formatTable(headers, rows)
+}
+
+function formatLabelsInline(labels: Record<string, string> | undefined): string {
+  if (!labels || Object.keys(labels).length === 0) return '<none>'
+  return Object.entries(labels)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(',')
 }
 
 function buildResourceRows(
@@ -139,6 +147,31 @@ function buildResourceRows(
             ? formatAge(cronJob.status.lastScheduleTime)
             : '<none>',
           formatAge(cronJob.metadata.creationTimestamp),
+        ])
+      )
+      return [headers, rows]
+    }
+
+    case 'DaemonSet': {
+      const daemonSets = items as DaemonSet[]
+      const headers = withNamespace([
+        'NAME',
+        'DESIRED',
+        'CURRENT',
+        'READY',
+        'AVAILABLE',
+        'NODE SELECTOR',
+        'AGE',
+      ])
+      const rows = daemonSets.map((daemonSet) =>
+        withNamespaceRow(daemonSet.metadata.namespace, [
+          daemonSet.metadata.name,
+          String(daemonSet.status.desiredNumberScheduled),
+          String(daemonSet.status.currentNumberScheduled),
+          String(daemonSet.status.numberReady),
+          String(daemonSet.status.numberAvailable),
+          formatLabelsInline(daemonSet.spec.template.spec.nodeSelector),
+          formatAge(daemonSet.metadata.creationTimestamp),
         ])
       )
       return [headers, rows]

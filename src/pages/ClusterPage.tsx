@@ -43,6 +43,8 @@ function getStatusSummary(resource: KubernetesResource): string {
       return resource.spec.suspend
         ? 'Suspended'
         : `${resource.status.active.length} Active`
+    case 'DaemonSet':
+      return `${resource.status.numberReady}/${resource.status.desiredNumberScheduled} Ready`
     default:
       return '-'
   }

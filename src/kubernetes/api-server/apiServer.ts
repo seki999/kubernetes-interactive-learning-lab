@@ -10,7 +10,7 @@ import {
   putResourceRaw,
   removeResourceRaw,
 } from './objectStore'
-import type { KubernetesResource, ResourceKind } from '@/types/k8s'
+import type { KubernetesResource, Pod, ResourceKind } from '@/types/k8s'
 import {
   getActiveTraceId,
   recordTraceStep,
@@ -44,6 +44,7 @@ const RESOURCE_PATHS: Record<ResourceKind, string> = {
   PersistentVolume: 'persistentvolumes',
   Job: 'jobs',
   CronJob: 'cronjobs',
+  DaemonSet: 'daemonsets',
 }
 
 function apiUrl(resource: KubernetesResource): string {
@@ -332,6 +333,24 @@ function deleteResourceCascade(
     removeResourceRaw('Endpoints', name, namespace)
   }
 
+  // 删除 Node 时，这个 Node 上由 DaemonSet 管理的 Pod 也应该跟着消失
+  // （对应"删除 Node 后相关 Pod 消失"）——DaemonSet Pod 和 Node 是一一绑定的，
+  // 不像普通 Pod 那样应该被重新调度到别的 Node 上。普通 Pod 不在这里处理，
+  // 沿用项目已有的行为（不会自动感知 Node 消失，这是已知的既有简化，不属于本次改动范围）。
+  if (kind === 'Node') {
+    const daemonSetPodsOnNode = listAllResources().filter(
+      (candidate): candidate is Pod =>
+        candidate.kind === 'Pod' &&
+        (candidate as Pod).status.nodeName === name &&
+        (candidate as Pod).metadata.ownerReferences?.some(
+          (ref) => ref.kind === 'DaemonSet'
+        ) === true
+    )
+    for (const pod of daemonSetPodsOnNode) {
+      deleteResourceCascade('Pod', pod.metadata.name, pod.metadata.namespace)
+    }
+  }
+
   removeResourceRaw(kind, name, namespace)
   emitEvent({
     involvedObject: { kind, name, namespace },
@@ -375,5 +394,13 @@ export function deleteResource(
     if (owner) {
       runControllersFor('ReplicaSet', owner)
     }
+  }
+
+  // 删除 Node 后，DaemonSet 的 desiredNumberScheduled 等状态计数也需要跟着
+  // 减少——deleteResourceCascade 只负责清理这个 Node 上的 DaemonSet Pod，
+  // 不会重新计算 DaemonSet.status，这里复用"Node 变化后重新调谐"的入口
+  // （和 reconcile.ts 里 Node 被创建/更新时的处理保持一致）。
+  if (kind === 'Node') {
+    runControllersFor('Node', resource)
   }
 }

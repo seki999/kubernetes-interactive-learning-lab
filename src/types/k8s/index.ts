@@ -8,6 +8,7 @@ import type { ConfigMap } from './configmap'
 import type { Secret } from './secret'
 import type { PersistentVolumeClaim, PersistentVolume } from './pvc'
 import type { Job, CronJob } from './job'
+import type { DaemonSet } from './daemonset'
 
 export * from './meta'
 export * from './pod'
@@ -21,13 +22,14 @@ export * from './secret'
 export * from './pvc'
 export * from './event'
 export * from './job'
+export * from './daemonset'
 
 /**
  * 当前虚拟集群支持的资源种类。
  * 这是"最低可交付版本"要求的资源集合（第二十六节）：
  * Pod、Deployment、ReplicaSet、Service、Node、Namespace、ConfigMap、Secret、PVC，
- * 另外加上由 Service 控制器自动生成的 Endpoints、以及供 PVC 绑定使用的 PersistentVolume。
- * StatefulSet / DaemonSet / Job / CronJob 等资源会在后续阶段加入。
+ * 另外加上由 Service 控制器自动生成的 Endpoints、供 PVC 绑定使用的 PersistentVolume、
+ * 以及后续阶段加入的 Job、CronJob、DaemonSet。StatefulSet 尚未实现。
  */
 export type ResourceKind =
   | 'Pod'
@@ -43,6 +45,7 @@ export type ResourceKind =
   | 'PersistentVolume'
   | 'Job'
   | 'CronJob'
+  | 'DaemonSet'
 
 export type KubernetesResource =
   | Pod
@@ -58,6 +61,7 @@ export type KubernetesResource =
   | PersistentVolume
   | Job
   | CronJob
+  | DaemonSet
 
 /** 集群级资源（没有 namespace 字段）。其余资源均为命名空间级资源。 */
 export const CLUSTER_SCOPED_KINDS: ReadonlySet<ResourceKind> = new Set([
@@ -84,4 +88,5 @@ export const ALL_RESOURCE_KINDS: ResourceKind[] = [
   'PersistentVolume',
   'Job',
   'CronJob',
+  'DaemonSet',
 ]

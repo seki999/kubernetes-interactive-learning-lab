@@ -9,39 +9,47 @@ import {
   replicaSetRevision,
 } from '@/kubernetes/deployment/rollout'
 import { parseArgs, resolveNamespace, toStringFlag } from '@/terminal/parser/parseArgs'
-import type { Deployment } from '@/types/k8s'
+import type { DaemonSet, Deployment } from '@/types/k8s'
 import { fail, formatApiServerError, ok, type CommandOutput } from './types'
 
-function deploymentName(positional: string[]): string | undefined {
+type RolloutTargetKind = 'deployment' | 'daemonset'
+
+function parseTarget(
+  positional: string[]
+): { kind: RolloutTargetKind; name: string } | undefined {
   const target = positional[0]
   if (!target) return undefined
-  const [kind, slashName] = target.split('/')
-  if (slashName) return kind === 'deployment' || kind === 'deploy' ? slashName : undefined
-  return kind === 'deployment' || kind === 'deploy' ? positional[1] : undefined
-}
-
-function findDeployment(
-  positional: string[],
-  namespace: string | undefined
-): Deployment | undefined {
-  const name = deploymentName(positional)
-  return name ? getResource<Deployment>('Deployment', name, namespace) : undefined
+  const [rawKind, slashName] = target.split('/')
+  const kind: RolloutTargetKind | undefined =
+    rawKind === 'deployment' || rawKind === 'deploy'
+      ? 'deployment'
+      : rawKind === 'daemonset' || rawKind === 'ds'
+        ? 'daemonset'
+        : undefined
+  if (!kind) return undefined
+  const name = slashName ?? positional[1]
+  return name ? { kind, name } : undefined
 }
 
 export function runRollout(argv: string[]): CommandOutput {
   const [action, ...rest] = argv
   const { positional, flags } = parseArgs(rest)
   const namespace = resolveNamespace(flags)
-  const deployment = findDeployment(positional, namespace)
-  const name = deploymentName(positional)
-  if (!action || !name) {
+  const target = parseTarget(positional)
+  if (!action || !target) {
     return fail([
-      'error: 用法：kubectl rollout <status|history|undo|restart> deployment/<名称>',
+      'error: 用法：kubectl rollout <status|history|undo|restart> deployment/<名称>，DaemonSet 目前只支持 kubectl rollout status daemonset/<名称>',
     ])
   }
+
+  if (target.kind === 'daemonset') {
+    return rolloutDaemonSet(action, target.name, namespace)
+  }
+
+  const deployment = getResource<Deployment>('Deployment', target.name, namespace)
   if (!deployment) {
     return fail([
-      `Error from server (NotFound): deployments.apps "${name}" not found`,
+      `Error from server (NotFound): deployments.apps "${target.name}" not found`,
     ])
   }
 
@@ -57,6 +65,36 @@ export function runRollout(argv: string[]): CommandOutput {
     default:
       return fail([`error: 不支持 kubectl rollout ${action}`])
   }
+}
+
+/**
+ * DaemonSet 目前只实现 rollout status（对应需求文档"实现 DaemonSet"里唯一明确要求的
+ * rollout 子命令）。history/undo/restart 需要 Revision 历史机制，DaemonSet 控制器
+ * 目前是"镜像变了就立即重建过期 Pod"的简化实现，没有版本历史，所以如实提示不支持，
+ * 而不是假装支持却什么也不做。
+ */
+function rolloutDaemonSet(
+  action: string,
+  name: string,
+  namespace: string | undefined
+): CommandOutput {
+  const daemonSet = getResource<DaemonSet>('DaemonSet', name, namespace)
+  if (!daemonSet) {
+    return fail([`Error from server (NotFound): daemonsets.apps "${name}" not found`])
+  }
+  if (action !== 'status') {
+    return fail([
+      `error: kubectl rollout ${action} daemonset 暂不支持——DaemonSet 控制器是简化实现，没有 Revision 历史，目前只支持 kubectl rollout status`,
+    ])
+  }
+  const { desiredNumberScheduled, currentNumberScheduled, numberReady } = daemonSet.status
+  const rolledOut =
+    currentNumberScheduled === desiredNumberScheduled && numberReady === desiredNumberScheduled
+  return ok([
+    rolledOut
+      ? `daemon set "${name}" successfully rolled out`
+      : `Waiting for daemon set "${name}" rollout to finish: ${numberReady} of ${desiredNumberScheduled} updated pods are available...`,
+  ])
 }
 
 function rolloutStatus(deployment: Deployment): CommandOutput {

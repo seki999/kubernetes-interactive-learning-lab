@@ -5,6 +5,7 @@ import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { KUBELET_RUNNING_DELAY_MS } from '@/kubernetes/kubelet/kubelet'
 import type {
   ConfigMap,
+  DaemonSet,
   Deployment,
   Node,
   PersistentVolume,
@@ -23,11 +24,11 @@ async function settle(ms = KUBELET_RUNNING_DELAY_MS + 50) {
 }
 
 describe('实验数据完整性', () => {
-  it('恰好包含 27 个实验，id 和 index 均唯一且覆盖 1-27', () => {
-    expect(LABS).toHaveLength(27)
-    expect(new Set(LABS.map((lab) => lab.id)).size).toBe(27)
+  it('恰好包含 28 个实验，id 和 index 均唯一且覆盖 1-28', () => {
+    expect(LABS).toHaveLength(28)
+    expect(new Set(LABS.map((lab) => lab.id)).size).toBe(28)
     const indexes = LABS.map((lab) => lab.index).sort((a, b) => a - b)
-    expect(indexes).toEqual(Array.from({ length: 27 }, (_, i) => i + 1))
+    expect(indexes).toEqual(Array.from({ length: 28 }, (_, i) => i + 1))
   })
 
   it('每个实验都包含最低限度的完整内容', () => {
@@ -425,5 +426,31 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
       status: { clusterIP: '10.96.0.20' },
     })
     expect(lab.check(allResources()).passed).toBe(true)
+  })
+
+  it('部署 Fluent Bit 日志 Agent（DaemonSet）', async () => {
+    const lab = LABS.find((l) => l.id === 'deploy-fluent-bit-daemonset')!
+    lab.initialSetup()
+    createResource<DaemonSet>({
+      apiVersion: 'apps/v1',
+      kind: 'DaemonSet',
+      metadata: { uid: '', name: 'fluent-bit', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      spec: {
+        selector: { matchLabels: { app: 'fluent-bit' } },
+        template: {
+          metadata: { labels: { app: 'fluent-bit' } },
+          spec: { containers: [{ name: 'fluent-bit', image: 'fluent/fluent-bit:2.2' }] },
+        },
+      },
+      status: {
+        desiredNumberScheduled: 0,
+        currentNumberScheduled: 0,
+        numberReady: 0,
+        numberAvailable: 0,
+        numberMisscheduled: 0,
+      },
+    })
+    await settle()
+    expect(lab.check(allResources())).toEqual(expect.objectContaining({ passed: true }))
   })
 })

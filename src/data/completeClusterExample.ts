@@ -8,6 +8,7 @@
  * - ConfigMap / Secret / PVC 被 Pod 挂载
  * - PVC 与集群级 PV 绑定
  * - 资源请求、探针、标签选择器和节点选择器
+ * - DaemonSet 在每个 Node 上各运行一个日志采集 Pod
  */
 export const COMPLETE_CLUSTER_YAML = `apiVersion: v1
 kind: Namespace
@@ -229,4 +230,26 @@ spec:
           containers:
             - name: report
               image: busybox:1.36
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-agent
+  namespace: learning-lab
+spec:
+  selector:
+    matchLabels:
+      app: node-agent
+  template:
+    metadata:
+      labels:
+        app: node-agent
+    spec:
+      containers:
+        - name: fluent-bit
+          image: fluent/fluent-bit:2.2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
 `

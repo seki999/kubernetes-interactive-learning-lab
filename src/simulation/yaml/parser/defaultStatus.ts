@@ -76,6 +76,15 @@ export function applyDefaultStatus(resource: KubernetesResource): void {
         simulatedTime: new Date().toISOString(),
       }
       return
+    case 'DaemonSet':
+      resource.status = {
+        desiredNumberScheduled: 0,
+        currentNumberScheduled: 0,
+        numberReady: 0,
+        numberAvailable: 0,
+        numberMisscheduled: 0,
+      }
+      return
     default:
       // ConfigMap / Secret 本来就没有 status 字段（和真实 Kubernetes 一致），
       // Endpoints 完全由 Service 控制器自动生成，用户不会手写，不需要默认值。

@@ -216,4 +216,17 @@ export const RESOURCE_CONCEPTS: Record<ResourceKind, ResourceConcept> = {
       { target: 'Events', description: '记录触发、跳过和历史清理结果' },
     ],
   },
+  DaemonSet: {
+    label: 'DaemonSet',
+    scope: '命名空间级',
+    role: '每节点常驻代理',
+    summary: '确保每一个符合条件的 Node 上都恰好运行一个 Pod，常用于日志采集、监控探针等节点级代理。',
+    details:
+      'Node 加入集群时 DaemonSet 自动在它上面创建 Pod，Node 被移除或不再符合 nodeSelector/Taint 条件时对应 Pod 也会被清理。它不关心"副本数"，只关心"每个匹配的 Node 是否都有一个"。',
+    relationships: [
+      { target: 'Node', description: '为每个符合条件的 Node 精确维持一个 Pod' },
+      { target: 'Pod', description: '直接创建并绑定 Pod 到目标 Node，不经过普通 Scheduler' },
+      { target: 'Taint / Toleration', description: '可通过节点污点排除或允许在特定 Node 上运行' },
+    ],
+  },
 }

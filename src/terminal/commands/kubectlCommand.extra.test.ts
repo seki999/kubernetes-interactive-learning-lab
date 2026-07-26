@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runKubectlCommand } from './runKubectlCommand'
 import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { createResource } from '@/kubernetes/api-server/apiServer'
+import { useYamlEditorStore } from '@/stores/useYamlEditorStore'
 import type { Node } from '@/types/k8s'
 
 // 本文件补充覆盖 runKubectlCommand.test.ts 里没有覆盖到的子命令和错误路径：
@@ -403,6 +404,93 @@ describe('runKubectlCommand - describe 的错误分支', () => {
 
   it('描述不存在的资源报错 NotFound', () => {
     const result = runKubectlCommand('kubectl describe deployment no-such')
+    expect(result.isError).toBe(true)
+    expect(result.lines[0]).toContain('NotFound')
+  })
+})
+
+describe('runKubectlCommand - DaemonSet（get/describe/set image/rollout status）', () => {
+  function applyFluentBitDaemonSet(): void {
+    useYamlEditorStore.getState().setContent(`apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: fluent-bit
+  template:
+    metadata:
+      labels:
+        app: fluent-bit
+    spec:
+      containers:
+        - name: fluent-bit
+          image: fluent/fluent-bit:2.2
+`)
+    const result = runKubectlCommand('kubectl apply -f fluent-bit.yaml')
+    expect(result.isError).toBeFalsy()
+  }
+
+  it('get daemonsets 展示 DESIRED/CURRENT/READY 列', async () => {
+    applyFluentBitDaemonSet()
+    await vi.advanceTimersByTimeAsync(1000)
+    const result = runKubectlCommand('kubectl get daemonsets')
+    expect(result.lines[0]).toContain('DESIRED')
+    expect(result.lines.some((line) => line.includes('fluent-bit'))).toBe(true)
+  })
+
+  it('describe daemonset 展示 Desired/Current/Ready 等状态字段', async () => {
+    applyFluentBitDaemonSet()
+    await vi.advanceTimersByTimeAsync(1000)
+    const result = runKubectlCommand('kubectl describe daemonset fluent-bit')
+    expect(result.isError).toBeFalsy()
+    expect(result.lines.some((line) => line.includes('Desired Number Scheduled'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('Number Ready'))).toBe(true)
+  })
+
+  it('set image daemonset 成功更新镜像', async () => {
+    applyFluentBitDaemonSet()
+    await vi.advanceTimersByTimeAsync(1000)
+    const result = runKubectlCommand(
+      'kubectl set image daemonset/fluent-bit fluent-bit=fluent/fluent-bit:2.3'
+    )
+    expect(result.lines[0]).toContain('image updated')
+  })
+
+  it('set image daemonset 目标不存在时报错', () => {
+    const result = runKubectlCommand(
+      'kubectl set image daemonset/no-such fluent-bit=fluent/fluent-bit:2.3'
+    )
+    expect(result.isError).toBe(true)
+  })
+
+  it('rollout status daemonset 在全部 Pod 就绪后提示 successfully rolled out', async () => {
+    applyFluentBitDaemonSet()
+    await vi.advanceTimersByTimeAsync(1000)
+    const result = runKubectlCommand('kubectl rollout status daemonset/fluent-bit')
+    expect(result.isError).toBeFalsy()
+    expect(result.lines[0]).toContain('successfully rolled out')
+  })
+
+  it('rollout status daemonset 在 Pod 还没就绪时提示等待中', () => {
+    applyFluentBitDaemonSet()
+    // 不推进定时器，Pod 还停留在 Pending/ContainerCreating。
+    const result = runKubectlCommand('kubectl rollout status daemonset/fluent-bit')
+    expect(result.lines[0]).toContain('Waiting for daemon set')
+  })
+
+  it('rollout history daemonset 明确提示暂不支持', async () => {
+    applyFluentBitDaemonSet()
+    await vi.advanceTimersByTimeAsync(1000)
+    const result = runKubectlCommand('kubectl rollout history daemonset/fluent-bit')
+    expect(result.isError).toBe(true)
+    expect(result.lines[0]).toContain('没有 Revision 历史')
+  })
+
+  it('rollout status daemonset 目标不存在时报错 NotFound', () => {
+    const result = runKubectlCommand('kubectl rollout status daemonset/no-such')
     expect(result.isError).toBe(true)
     expect(result.lines[0]).toContain('NotFound')
   })

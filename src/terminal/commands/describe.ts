@@ -5,7 +5,16 @@ import { formatAge } from '@/terminal/formatter/table'
 import { parseArgs, resolveNamespace } from '@/terminal/parser/parseArgs'
 import { KIND_ALIASES } from './kindAliases'
 import { fail, ok, type CommandOutput } from './types'
-import type { CronJob, Deployment, Endpoints, Job, K8sEvent, Pod, Service } from '@/types/k8s'
+import type {
+  CronJob,
+  DaemonSet,
+  Deployment,
+  Endpoints,
+  Job,
+  K8sEvent,
+  Pod,
+  Service,
+} from '@/types/k8s'
 
 function describeEvents(
   kind: string,
@@ -156,6 +165,23 @@ function describeCronJob(cronJob: CronJob): string[] {
   ]
 }
 
+function describeDaemonSet(daemonSet: DaemonSet): string[] {
+  return [
+    `Name:              ${daemonSet.metadata.name}`,
+    `Namespace:         ${daemonSet.metadata.namespace ?? '-'}`,
+    `Selector:          ${formatLabels(daemonSet.spec.selector.matchLabels)}`,
+    `Node-Selector:     ${formatLabels(daemonSet.spec.template.spec.nodeSelector)}`,
+    `Desired Number Scheduled:  ${daemonSet.status.desiredNumberScheduled}`,
+    `Current Number Scheduled:  ${daemonSet.status.currentNumberScheduled}`,
+    `Number Ready:               ${daemonSet.status.numberReady}`,
+    `Number Available:           ${daemonSet.status.numberAvailable}`,
+    `Number Misscheduled:        ${daemonSet.status.numberMisscheduled}`,
+    `Image(s):          ${daemonSet.spec.template.spec.containers.map((c) => c.image).join(', ')}`,
+    '',
+    ...describeEvents('DaemonSet', daemonSet.metadata.name, daemonSet.metadata.namespace),
+  ]
+}
+
 function formatLabels(labels: Record<string, string> | undefined): string {
   if (!labels || Object.keys(labels).length === 0) {
     return '<none>'
@@ -202,6 +228,8 @@ export function runDescribe(argv: string[]): CommandOutput {
       lines.push(...describeJob(resource as Job))
     } else if (resource!.kind === 'CronJob') {
       lines.push(...describeCronJob(resource as CronJob))
+    } else if (resource!.kind === 'DaemonSet') {
+      lines.push(...describeDaemonSet(resource as DaemonSet))
     } else {
       // 其余资源类型暂时用通用的 YAML 展示代替专门的 describe 排版。
       lines.push(
