@@ -85,6 +85,9 @@ export function applyDefaultStatus(resource: KubernetesResource): void {
         numberMisscheduled: 0,
       }
       return
+    case 'HorizontalPodAutoscaler':
+      resource.status = { currentReplicas: 0, desiredReplicas: 0 }
+      return
     default:
       // ConfigMap / Secret 本来就没有 status 字段（和真实 Kubernetes 一致），
       // Endpoints 完全由 Service 控制器自动生成，用户不会手写，不需要默认值。

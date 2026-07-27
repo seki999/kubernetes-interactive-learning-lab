@@ -9,6 +9,8 @@
  * - PVC 与集群级 PV 绑定
  * - 资源请求、探针、标签选择器和节点选择器
  * - DaemonSet 在每个 Node 上各运行一个日志采集 Pod
+ * - HorizontalPodAutoscaler 根据（可由用户在负载模拟面板控制的）CPU 使用率
+ *   对 Deployment 进行扩缩容
  */
 export const COMPLETE_CLUSTER_YAML = `apiVersion: v1
 kind: Namespace
@@ -252,4 +254,24 @@ spec:
             requests:
               cpu: 50m
               memory: 64Mi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: learning-web
+  namespace: learning-lab
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: learning-web
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
 `

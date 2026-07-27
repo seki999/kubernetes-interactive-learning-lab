@@ -45,6 +45,7 @@ const RESOURCE_PATHS: Record<ResourceKind, string> = {
   Job: 'jobs',
   CronJob: 'cronjobs',
   DaemonSet: 'daemonsets',
+  HorizontalPodAutoscaler: 'horizontalpodautoscalers',
 }
 
 function apiUrl(resource: KubernetesResource): string {

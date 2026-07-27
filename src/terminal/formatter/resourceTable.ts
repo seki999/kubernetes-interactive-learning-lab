@@ -14,6 +14,7 @@ import type {
   Job,
   CronJob,
   DaemonSet,
+  HorizontalPodAutoscaler,
 } from '@/types/k8s'
 
 /**
@@ -174,6 +175,36 @@ function buildResourceRows(
           formatAge(daemonSet.metadata.creationTimestamp),
         ])
       )
+      return [headers, rows]
+    }
+
+    case 'HorizontalPodAutoscaler': {
+      const hpas = items as HorizontalPodAutoscaler[]
+      const headers = withNamespace([
+        'NAME',
+        'REFERENCE',
+        'TARGETS',
+        'MINPODS',
+        'MAXPODS',
+        'REPLICAS',
+        'AGE',
+      ])
+      const rows = hpas.map((hpa) => {
+        const cpuMetric = hpa.spec.metrics.find((metric) => metric.resource.name === 'cpu')
+        const targets =
+          hpa.status.currentCPUUtilizationPercentage !== undefined && cpuMetric
+            ? `${hpa.status.currentCPUUtilizationPercentage}%/${cpuMetric.resource.target.averageUtilization}%`
+            : '<unknown>/' + `${cpuMetric?.resource.target.averageUtilization ?? '-'}%`
+        return withNamespaceRow(hpa.metadata.namespace, [
+          hpa.metadata.name,
+          `Deployment/${hpa.spec.scaleTargetRef.name}`,
+          targets,
+          String(hpa.spec.minReplicas),
+          String(hpa.spec.maxReplicas),
+          String(hpa.status.currentReplicas),
+          formatAge(hpa.metadata.creationTimestamp),
+        ])
+      })
       return [headers, rows]
     }
 

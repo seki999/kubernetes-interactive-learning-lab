@@ -11,26 +11,27 @@
 ### 已完整实现
 
 - **虚拟 Kubernetes 核心**：内存中的虚拟 etcd（可选 IndexedDB 持久化）+ 虚拟 API Server（CRUD、结构校验、Events）+ 简化 Scheduler（按 CPU/内存 requests、Taint/Toleration 匹配节点）+ Kubelet 状态机（Pending → ContainerCreating → Running / ImagePullBackOff / CrashLoopBackOff）。
-- **控制器**：Deployment/ReplicaSet 控制器（副本数调谐、自愈、简化版滚动更新）、Endpoint 控制器（Service selector 匹配 + Endpoints 自动刷新）、PVC-PV 绑定控制器、Node 故障 → Pod 驱逐重新调度控制器。
-- **支持的资源类型**：Pod、Deployment、ReplicaSet、Service、Endpoints、Node、Namespace、ConfigMap、Secret、PersistentVolumeClaim、PersistentVolume、Job、CronJob、DaemonSet。
+- **控制器**：Deployment/ReplicaSet 控制器（副本数调谐、自愈、简化版滚动更新）、Endpoint 控制器（Service selector 匹配 + Endpoints 自动刷新）、PVC-PV 绑定控制器、Node 故障 → Pod 驱逐重新调度控制器、DaemonSet 控制器（每个符合条件的 Node 一个 Pod）、HorizontalPodAutoscaler 控制器（基于可控 Metrics Simulator 的自动扩缩容，含冷却时间和缩容稳定窗口的简化模拟）。
+- **支持的资源类型**：Pod、Deployment、ReplicaSet、Service、Endpoints、Node、Namespace、ConfigMap、Secret、PersistentVolumeClaim、PersistentVolume、Job、CronJob、DaemonSet、HorizontalPodAutoscaler（HPA）。
 - **交互工具**：
   - kubectl 终端（基于 xterm.js），支持 `get/describe/create/apply/delete/expose/scale/set image/logs/top/cordon/uncordon/drain/taint/label/annotate/config/api-resources/explain` 等子命令和自动补全；
   - YAML 实验室（Monaco 编辑器），支持实时结构校验、`apply -f`/`delete -f`、应用前后差异预览；
-  - 资源列表 + 详情面板（YAML/状态/Events）；
+  - 资源列表 + 详情面板（YAML/状态/Events），Deployment 详情面板内置"负载模拟"面板，可显式设置 CPU/内存使用率、每秒请求数，一键触发流量增长/下降/突发/周期流量/单 Pod 故障；
   - 拖拽式架构设计器（简化版）。
 - **可视化**：只读集群拓扑图（Namespace → Node → Pod → Service 层级关系）、Pod 创建调度动画、Deployment 扩缩容动画、Service 流量动画，均由领域事件总线驱动，与模拟核心解耦。
-- **学习内容**：30 节课程（学习目标、概念说明、架构图、操作步骤、命令示例、可选 YAML 示例、自动验证、知识检查题、常见错误、总结）、25 个动手实验（20 个可交互自动检查完成情况）、19 个故障注入/排查场景（14 个可交互注入和一键修复）、学习进度看板（完成率、命令掌握率、资源掌握情况、连续学习天数、导入导出）。
+- **学习内容**：32 节课程（学习目标、概念说明、架构图、操作步骤、命令示例、可选 YAML 示例、自动验证、知识检查题、常见错误、总结）、28 个动手实验（25 个可交互自动检查完成情况）、19 个故障注入/排查场景（14 个可交互注入和一键修复）、学习进度看板（完成率、命令掌握率、资源掌握情况、连续学习天数、导入导出）。
 
 ### 明确简化或尚未实现
 
 为了保证诚实透明，以下内容会在界面里明确提示，不会假装已经支持：
 
-- **不支持的资源类型**：Ingress、StatefulSet、HorizontalPodAutoscaler（HPA）、PodDisruptionBudget、RBAC（Role/RoleBinding/ServiceAccount）、NetworkPolicy。相关课程/实验/故障场景会明确标注"尚未实现"或"仅作参考说明"，不提供可交互验证。（Job/CronJob/DaemonSet 已实现，见上方"支持的资源类型"。）
-- **`kubectl exec` / `kubectl edit` / `kubectl rollout status|history|undo`**：直接返回"尚未实现"提示，不做假装。
+- **不支持的资源类型**：Ingress、StatefulSet、PodDisruptionBudget、RBAC（Role/RoleBinding/ServiceAccount）、NetworkPolicy。相关课程/实验/故障场景会明确标注"尚未实现"或"仅作参考说明"，不提供可交互验证。（Job/CronJob/DaemonSet/HorizontalPodAutoscaler 已实现，见上方"支持的资源类型"。）
+- **`kubectl exec` / `kubectl edit` / `kubectl rollout status|history|undo`**：直接返回"尚未实现"提示，不做假装（`kubectl rollout status` 对 Deployment/DaemonSet 已支持）。
 - **滚动更新是简化版**：修改 Deployment 镜像会直接重建全部 Pod，没有 `maxSurge`/`maxUnavailable` 分批替换，没有 rollout 历史和回滚。
-- **`kubectl describe`**：只对 Pod/Deployment/Service 做了专门排版，其余资源类型用通用 YAML 展示代替。
-- **拖拽式设计器**：只支持"拖入创建资源 + 点击查看详情/删除 + 拖动调整位置"，不支持用连线建立资源关系、双击内联编辑、撤销重做。
-- **`kubectl top` 的资源用量**：是在 requests 基础上加随机浮动模拟出来的数字，不是真实采集的指标。
+- **`kubectl describe`**：对 Pod/Deployment/Service/Job/CronJob/DaemonSet/HorizontalPodAutoscaler 做了专门排版，其余资源类型用通用 YAML 展示代替。
+- **拖拽式设计器**：只支持"拖入创建资源 + 点击查看详情/删除 + 拖动调整位置"，不支持用连线建立资源关系、双击内联编辑、撤销重做，且暂不支持拖入 DaemonSet/HorizontalPodAutoscaler。
+- **`kubectl top` 的资源用量**：不是随机数，而是由"负载模拟"面板显式设置的可控指标（相对于容器 `resources.requests` 的百分比），和 HPA 扩缩容读取同一份数据；但仍然是用户手动设置的模拟值，不是真实采集的指标。
+- **HPA 是简化实现**：只支持 Deployment 作为 `scaleTargetRef`、只支持 Resource（CPU/内存）类型指标；冷却时间和缩容稳定窗口被压缩到几秒到几十秒（真实 Kubernetes 默认是几分钟级别），且没有后台定时轮询——只在负载画像变化时才重新计算，避免"刷新页面/休眠后行为不可复现"。
 
 ## 技术栈
 

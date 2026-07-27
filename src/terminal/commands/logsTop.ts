@@ -3,10 +3,15 @@ import {
   parseCpuToMillicores,
   parseMemoryToMebibytes,
 } from '@/kubernetes/scheduler/resourceUnits'
+import {
+  DEFAULT_LOAD_PROFILE,
+  metricsProfileKey,
+  useMetricsSimulatorStore,
+} from '@/simulation/metrics/metricsSimulatorStore'
 import { formatTable } from '@/terminal/formatter/table'
 import { parseArgs, resolveNamespace } from '@/terminal/parser/parseArgs'
 import { fail, ok, type CommandOutput } from './types'
-import type { Job, Node, Pod } from '@/types/k8s'
+import type { Job, Node, Pod, ReplicaSet } from '@/types/k8s'
 
 /**
  * 模拟日志：浏览器里没有真实容器，日志内容是根据 Pod 当前状态生成的固定文案，
@@ -65,11 +70,34 @@ export function runLogs(argv: string[]): CommandOutput {
   }
 }
 
-/** 模拟资源使用率：在 request 的基础上加一点随机浮动，用于教学演示，不是真实采集的指标。 */
-function simulateUsage(requestValue: number): number {
+/**
+ * 找到 Pod 所属 Deployment 的负载画像 key（Pod → ReplicaSet → Deployment）。
+ * 找不到归属 Deployment 时（裸 Pod、Job/CronJob/DaemonSet 的 Pod）返回 undefined，
+ * 调用方会退回到一个固定的默认画像，而不是随机数。
+ */
+function metricsKeyForPod(pod: Pod): string | undefined {
+  const replicaSetRef = pod.metadata.ownerReferences?.find(
+    (reference) => reference.kind === 'ReplicaSet'
+  )
+  if (!replicaSetRef) return undefined
+  const replicaSet = getResource<ReplicaSet>('ReplicaSet', replicaSetRef.name, pod.metadata.namespace)
+  const deploymentRef = replicaSet?.metadata.ownerReferences?.find(
+    (reference) => reference.kind === 'Deployment'
+  )
+  if (!deploymentRef) return undefined
+  return metricsProfileKey(pod.metadata.namespace, deploymentRef.name)
+}
+
+/**
+ * 按 Metrics Simulator 里的可控使用率折算出实际用量（request × 百分比）。
+ *
+ * 之前这里是 request 基础上叠加 Math.random() 抖动，数值不可控也不可复现；
+ * 现在改成读取用户在"负载模拟"面板里设置的百分比（没有设置过的 Pod/Deployment
+ * 使用固定的默认值 DEFAULT_LOAD_PROFILE，同样不是随机数）。
+ */
+function resourceUsage(requestValue: number, utilizationPercent: number): number {
   if (requestValue <= 0) return 0
-  const factor = 0.4 + Math.random() * 0.5
-  return Math.round(requestValue * factor)
+  return Math.max(1, Math.round(requestValue * (utilizationPercent / 100)))
 }
 
 export function runTop(argv: string[]): CommandOutput {
@@ -93,22 +121,48 @@ export function runTop(argv: string[]): CommandOutput {
         }),
         { cpu: 0, memory: 0 }
       )
+      const key = metricsKeyForPod(pod)
+      const profile = key
+        ? useMetricsSimulatorStore.getState().getProfile(key)
+        : DEFAULT_LOAD_PROFILE
       return [
         pod.metadata.name,
-        `${simulateUsage(requests.cpu) || 5}m`,
-        `${simulateUsage(requests.memory) || 20}Mi`,
+        `${requests.cpu > 0 ? resourceUsage(requests.cpu, profile.cpuPercent) : 5}m`,
+        `${requests.memory > 0 ? resourceUsage(requests.memory, profile.memoryPercent) : 20}Mi`,
       ]
     })
     return ok(formatTable(['NAME', 'CPU(cores)', 'MEMORY(bytes)'], rows))
   }
 
   if (target === 'node' || target === 'nodes') {
+    const allPods = listResources<Pod>('Pod').filter((pod) => pod.status.phase === 'Running')
     const nodes = listResources<Node>('Node')
     const rows = nodes.map((node) => {
       const allocatableCpu = parseCpuToMillicores(node.status.allocatable.cpu)
       const allocatableMemory = parseMemoryToMebibytes(node.status.allocatable.memory)
-      const usedCpu = simulateUsage(allocatableCpu * 0.3)
-      const usedMemory = simulateUsage(allocatableMemory * 0.3)
+      // Node 的用量是它上面所有 Pod 用量的累加，而不是脱离 Pod 单独模拟的随机数——
+      // 这样 kubectl top pod 和 kubectl top node 两个视图的数据是一致、可解释的。
+      const podsOnNode = allPods.filter((pod) => pod.status.nodeName === node.metadata.name)
+      const { usedCpu, usedMemory } = podsOnNode.reduce(
+        (total, pod) => {
+          const requests = pod.spec.containers.reduce(
+            (sum, container) => ({
+              cpu: sum.cpu + parseCpuToMillicores(container.resources?.requests?.cpu),
+              memory: sum.memory + parseMemoryToMebibytes(container.resources?.requests?.memory),
+            }),
+            { cpu: 0, memory: 0 }
+          )
+          const key = metricsKeyForPod(pod)
+          const profile = key
+            ? useMetricsSimulatorStore.getState().getProfile(key)
+            : DEFAULT_LOAD_PROFILE
+          return {
+            usedCpu: total.usedCpu + resourceUsage(requests.cpu, profile.cpuPercent),
+            usedMemory: total.usedMemory + resourceUsage(requests.memory, profile.memoryPercent),
+          }
+        },
+        { usedCpu: 0, usedMemory: 0 }
+      )
       return [
         node.metadata.name,
         `${usedCpu}m`,

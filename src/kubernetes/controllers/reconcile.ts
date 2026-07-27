@@ -6,6 +6,7 @@ import { reconcileNode } from './nodeController'
 import { reconcileJob } from './jobController'
 import { reconcileCronJob } from './cronJobController'
 import { reconcileDaemonSet, reconcileDaemonSetsForNodeChange } from './daemonSetController'
+import { reconcileHpa } from './hpaController'
 import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
 import type {
   Deployment,
@@ -18,6 +19,7 @@ import type {
   Job,
   CronJob,
   DaemonSet,
+  HorizontalPodAutoscaler,
 } from '@/types/k8s'
 
 /**
@@ -29,8 +31,8 @@ import type {
  *
  * 当前接入的控制器：Deployment、ReplicaSet、Service（Endpoint 控制器）、
  * PersistentVolumeClaim/PersistentVolume（绑定控制器）、Node（故障重新调度 +
- * DaemonSet 重新调谐）、DaemonSet，以及 Pod 创建后触发的 Scheduler、Job、
- * CronJob。StatefulSet / HPA 控制器尚未实现，会在后续阶段补充。
+ * DaemonSet 重新调谐）、DaemonSet、HorizontalPodAutoscaler，以及 Pod 创建后
+ * 触发的 Scheduler、Job、CronJob。StatefulSet 尚未实现，会在后续阶段补充。
  */
 export function runControllersFor(
   kind: ResourceKind,
@@ -70,6 +72,9 @@ export function runControllersFor(
       break
     case 'DaemonSet':
       reconcileDaemonSet(resource as DaemonSet)
+      break
+    case 'HorizontalPodAutoscaler':
+      reconcileHpa(resource as HorizontalPodAutoscaler)
       break
     default:
       break

@@ -10,6 +10,7 @@ import type {
   DaemonSet,
   Deployment,
   Endpoints,
+  HorizontalPodAutoscaler,
   Job,
   K8sEvent,
   Pod,
@@ -182,6 +183,35 @@ function describeDaemonSet(daemonSet: DaemonSet): string[] {
   ]
 }
 
+function describeHpa(hpa: HorizontalPodAutoscaler): string[] {
+  const cpuMetric = hpa.spec.metrics.find((metric) => metric.resource.name === 'cpu')
+  const memoryMetric = hpa.spec.metrics.find((metric) => metric.resource.name === 'memory')
+  const lines = [
+    `Name:               ${hpa.metadata.name}`,
+    `Namespace:          ${hpa.metadata.namespace ?? '-'}`,
+    `Reference:          Deployment/${hpa.spec.scaleTargetRef.name}`,
+    `Min Replicas:       ${hpa.spec.minReplicas}`,
+    `Max Replicas:       ${hpa.spec.maxReplicas}`,
+    `Current Replicas:   ${hpa.status.currentReplicas}`,
+    `Desired Replicas:   ${hpa.status.desiredReplicas}`,
+  ]
+  if (cpuMetric) {
+    lines.push(
+      `CPU Utilization:    ${hpa.status.currentCPUUtilizationPercentage ?? '<unknown>'}% / ${cpuMetric.resource.target.averageUtilization}% (target)`
+    )
+  }
+  if (memoryMetric) {
+    lines.push(
+      `Memory Utilization: ${hpa.status.currentMemoryUtilizationPercentage ?? '<unknown>'}% / ${memoryMetric.resource.target.averageUtilization}% (target)`
+    )
+  }
+  if (hpa.status.message) {
+    lines.push(`Message:            ${hpa.status.message}`)
+  }
+  lines.push('', ...describeEvents('HorizontalPodAutoscaler', hpa.metadata.name, hpa.metadata.namespace))
+  return lines
+}
+
 function formatLabels(labels: Record<string, string> | undefined): string {
   if (!labels || Object.keys(labels).length === 0) {
     return '<none>'
@@ -230,6 +260,8 @@ export function runDescribe(argv: string[]): CommandOutput {
       lines.push(...describeCronJob(resource as CronJob))
     } else if (resource!.kind === 'DaemonSet') {
       lines.push(...describeDaemonSet(resource as DaemonSet))
+    } else if (resource!.kind === 'HorizontalPodAutoscaler') {
+      lines.push(...describeHpa(resource as HorizontalPodAutoscaler))
     } else {
       // 其余资源类型暂时用通用的 YAML 展示代替专门的 describe 排版。
       lines.push(

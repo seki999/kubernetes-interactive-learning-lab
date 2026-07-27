@@ -45,6 +45,8 @@ function getStatusSummary(resource: KubernetesResource): string {
         : `${resource.status.active.length} Active`
     case 'DaemonSet':
       return `${resource.status.numberReady}/${resource.status.desiredNumberScheduled} Ready`
+    case 'HorizontalPodAutoscaler':
+      return `${resource.status.currentReplicas}/${resource.spec.maxReplicas}（期望 ${resource.status.desiredReplicas}）`
     default:
       return '-'
   }

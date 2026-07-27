@@ -7,6 +7,7 @@ import type {
   ConfigMap,
   DaemonSet,
   Deployment,
+  HorizontalPodAutoscaler,
   Node,
   PersistentVolume,
   PersistentVolumeClaim,
@@ -41,10 +42,10 @@ describe('实验数据完整性', () => {
     }
   })
 
-  it('非交互实验（Ingress/HPA/RBAC/NetworkPolicy）如实标注 interactive: false', () => {
+  it('非交互实验（Ingress/RBAC/NetworkPolicy）如实标注 interactive: false', () => {
     const nonInteractive = LABS.filter((lab) => !lab.interactive)
     expect(nonInteractive.map((lab) => lab.id).sort()).toEqual(
-      ['configure-hpa', 'configure-network-policy', 'configure-rbac', 'create-ingress'].sort()
+      ['configure-network-policy', 'configure-rbac', 'create-ingress'].sort()
     )
     for (const lab of nonInteractive) {
       expect(lab.check([])).toEqual(expect.objectContaining({ passed: false }))
@@ -452,5 +453,30 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     })
     await settle()
     expect(lab.check(allResources())).toEqual(expect.objectContaining({ passed: true }))
+  })
+
+  it('配置 HPA，实现自动扩缩容', async () => {
+    const lab = LABS.find((l) => l.id === 'configure-hpa')!
+    lab.initialSetup()
+    createResource<HorizontalPodAutoscaler>({
+      apiVersion: 'autoscaling/v2',
+      kind: 'HorizontalPodAutoscaler',
+      metadata: { uid: '', name: 'web-hpa', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      spec: {
+        scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'web' },
+        minReplicas: 2,
+        maxReplicas: 6,
+        metrics: [
+          { type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 50 } } },
+        ],
+      },
+      status: { currentReplicas: 0, desiredReplicas: 0 },
+    })
+    // 创建之后立即检查一次：CPU 压力还是默认值（50%），刚好等于目标，不应该扩容。
+    expect(lab.check(allResources()).passed).toBe(false)
+
+    const { applyBurstTraffic } = await import('@/kubernetes/controllers/hpaController')
+    applyBurstTraffic('default', 'web')
+    expect(lab.check(allResources()).passed).toBe(true)
   })
 })

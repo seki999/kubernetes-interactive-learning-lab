@@ -15,6 +15,7 @@ export type TraceComponent =
   | 'job-controller'
   | 'cronjob-controller'
   | 'daemonset-controller'
+  | 'hpa-controller'
 
 export interface ResourceReference {
   kind: string

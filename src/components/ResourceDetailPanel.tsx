@@ -7,7 +7,8 @@ import type { KubernetesResource, ResourceKind } from '@/types/k8s'
 import type { Pod } from '@/types/k8s'
 import { SchedulerExplanation } from './SchedulerExplanation'
 import { BatchResourceActions } from './BatchResourceActions'
-import type { CronJob } from '@/types/k8s'
+import { MetricsSimulatorControls } from './MetricsSimulatorControls'
+import type { CronJob, Deployment } from '@/types/k8s'
 
 interface ResourceDetailPanelProps {
   resource: KubernetesResource
@@ -120,6 +121,9 @@ export function ResourceDetailPanel({ resource, onDeleted }: ResourceDetailPanel
           </dl>
           {resource.kind === 'CronJob' && (
             <BatchResourceActions cronJob={resource as CronJob} />
+          )}
+          {resource.kind === 'Deployment' && (
+            <MetricsSimulatorControls deployment={resource as Deployment} />
           )}
           </>
         )}

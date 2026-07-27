@@ -99,6 +99,39 @@ export function validateResource(resource: KubernetesResource): string[] {
     }
   }
 
+  if (resource.kind === 'HorizontalPodAutoscaler') {
+    if (resource.spec.scaleTargetRef?.kind !== 'Deployment') {
+      errors.push('HorizontalPodAutoscaler 目前只支持 scaleTargetRef.kind 为 Deployment')
+    }
+    if (!resource.spec.scaleTargetRef?.name) {
+      errors.push('HorizontalPodAutoscaler 必须设置 scaleTargetRef.name')
+    }
+    for (const [name, value] of [
+      ['minReplicas', resource.spec.minReplicas],
+      ['maxReplicas', resource.spec.maxReplicas],
+    ] as const) {
+      if (!Number.isInteger(value) || value < 1) {
+        errors.push(`${name} 必须是大于等于 1 的整数`)
+      }
+    }
+    if (
+      Number.isInteger(resource.spec.minReplicas) &&
+      Number.isInteger(resource.spec.maxReplicas) &&
+      resource.spec.minReplicas > resource.spec.maxReplicas
+    ) {
+      errors.push('minReplicas 不能大于 maxReplicas')
+    }
+    if (!resource.spec.metrics || resource.spec.metrics.length === 0) {
+      errors.push('HorizontalPodAutoscaler 必须至少设置一个 metrics')
+    }
+    resource.spec.metrics?.forEach((metric, index) => {
+      const utilization = metric.resource?.target?.averageUtilization
+      if (!Number.isInteger(utilization) || utilization <= 0) {
+        errors.push(`第 ${index + 1} 个 metrics 的 averageUtilization 必须是大于 0 的整数`)
+      }
+    })
+  }
+
   if (resource.kind === 'CronJob') {
     if (!resource.spec.schedule?.trim()) errors.push('CronJob 必须设置 spec.schedule')
     if (!resource.spec.jobTemplate?.spec?.template?.spec?.containers?.length) {

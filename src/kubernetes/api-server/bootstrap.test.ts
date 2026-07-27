@@ -29,7 +29,7 @@ describe('完整示例集群与从零学习模式', () => {
     await vi.advanceTimersByTimeAsync(500)
 
     expect(result?.errors).toEqual([])
-    expect(result?.appliedNames).toHaveLength(13)
+    expect(result?.appliedNames).toHaveLength(14)
     expect(useYamlEditorStore.getState().content).toBe(COMPLETE_CLUSTER_YAML)
 
     const resources = listAllResources()

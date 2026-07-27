@@ -5,10 +5,9 @@
 // 三种交互方式都作用于同一个虚拟 API Server，因此任何一种方式完成操作
 // 都能被正确判定为"通过"。
 //
-// 诚实说明：Ingress / HPA / RBAC / NetworkPolicy 这几种资源类型，以及
-// Deployment 的滚动更新历史/回滚已经实现；Ingress / HPA / RBAC /
-// NetworkPolicy 等资源仍未实现（见"滚动更新和回滚"课程）。
-// 这些实验的 interactive 字段为 false，页面会如实提示"暂不支持自动检测"，
+// 诚实说明：DaemonSet 和 HorizontalPodAutoscaler（配合可控的 Metrics Simulator）
+// 已经实现；Ingress / RBAC / NetworkPolicy 等资源仍未实现。
+// 这些资源相关实验的 interactive 字段为 false，页面会如实提示"暂不支持自动检测"，
 // 只提供背景说明、参考 YAML 和排查思路，不假装可以自动判分。
 
 import {
@@ -20,6 +19,7 @@ import type {
   DaemonSet,
   Deployment,
   Endpoints,
+  HorizontalPodAutoscaler,
   Node,
   PersistentVolume,
   PersistentVolumeClaim,
@@ -475,35 +475,93 @@ spec:
   {
     id: 'configure-hpa',
     index: 12,
-    title: `配置 HPA`,
-    background: `流量会随时间波动，你希望副本数能根据 CPU 使用率自动增减。`,
-    goal: `参考下面的 YAML，理解 HPA 的 minReplicas/maxReplicas/目标利用率如何配合工作（本模拟器暂不支持创建该资源）。`,
-    hints: [`本模拟器尚未实现指标采集和自动扩缩容逻辑，Deployment 目前只能手动 scale`],
-    initialSetup: () => seedBasicCluster(1),
-    check: () => ({
-      passed: false,
-      message: `本模拟器当前尚未实现 HPA 资源类型和指标驱动的自动扩缩容，无法自动检测。`,
-    }),
+    title: `配置 HPA，实现自动扩缩容`,
+    background: `流量会随时间波动，你希望副本数能根据 CPU 使用率自动增减，而不用每次都手动 kubectl scale。`,
+    goal: `创建一个名为 web-hpa 的 HorizontalPodAutoscaler，目标是 Deployment/web，minReplicas 2、maxReplicas 6、CPU 目标使用率 50%；然后在"虚拟集群"页面点开 web 的详情面板，用"负载模拟"里的按钮把 CPU 压力推高，观察 HPA 自动把副本数扩容到超过 2。`,
+    hints: [
+      `HPA 目前只能通过 kubectl apply -f 或 YAML 实验室创建，还没有实现 kubectl autoscale 命令`,
+      `用 kubectl get hpa 或 kubectl describe hpa web-hpa 查看 TARGETS/REPLICAS 列`,
+      `CPU 使用率由"负载模拟"面板显式设置，不是随机数；点击"突发流量"会让 CPU 压力跳到 180%，明显超过 50% 的目标`,
+      `点击"负载模拟"面板里的按钮后会立即重新计算一次 HPA，不需要等待`,
+    ],
+    initialSetup: () => {
+      seedBasicCluster(2)
+      createResource<Deployment>({
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        spec: {
+          replicas: 2,
+          selector: { matchLabels: { app: 'web' } },
+          template: {
+            metadata: { labels: { app: 'web' } },
+            spec: {
+              containers: [
+                {
+                  name: 'web',
+                  image: 'nginx:1.27',
+                  resources: { requests: { cpu: '100m', memory: '128Mi' } },
+                },
+              ],
+            },
+          },
+        },
+        status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+      })
+    },
+    check: (resources) => {
+      const deployment = resources.find(
+        (resource): resource is Deployment =>
+          resource.kind === 'Deployment' && resource.metadata.name === 'web'
+      )
+      const hpa = resources.find(
+        (resource): resource is HorizontalPodAutoscaler =>
+          resource.kind === 'HorizontalPodAutoscaler' && resource.metadata.name === 'web-hpa'
+      )
+      if (!deployment) {
+        return { passed: false, message: `没有找到 web 这个 Deployment（它应该已经在初始状态里了，请不要删除它）。` }
+      }
+      if (!hpa) return { passed: false, message: `还没有找到 web-hpa 这个 HorizontalPodAutoscaler。` }
+      if (hpa.spec.scaleTargetRef.name !== 'web') {
+        return { passed: false, message: `web-hpa 的 scaleTargetRef 应该指向 Deployment/web。` }
+      }
+      if (hpa.status.currentReplicas <= hpa.spec.minReplicas) {
+        return {
+          passed: false,
+          message: `当前副本数是 ${hpa.status.currentReplicas}，还没有超过 minReplicas（${hpa.spec.minReplicas}），请去"负载模拟"面板提高 CPU 压力。`,
+        }
+      }
+      if (deployment.spec.replicas !== hpa.status.currentReplicas) {
+        return { passed: false, message: `HPA 期望副本数和 Deployment 实际副本数还没有同步，请稍等。` }
+      }
+      return {
+        passed: true,
+        message: `HPA 已经根据 CPU 压力把副本数从 ${hpa.spec.minReplicas} 自动扩容到 ${hpa.status.currentReplicas}！`,
+      }
+    },
     referenceYaml: `apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: web-hpa
+  namespace: default
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: web
   minReplicas: 2
-  maxReplicas: 10
+  maxReplicas: 6
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60`,
-    scoreOnSuccess: 0,
-    interactive: false,
+          averageUtilization: 50
+# 创建好 HPA 之后，去"虚拟集群"页面点开 web 的详情面板，
+# 在"负载模拟"面板里点击"突发流量"按钮，观察副本数自动增加。`,
+    scoreOnSuccess: 100,
+    interactive: true,
   },
 
   {

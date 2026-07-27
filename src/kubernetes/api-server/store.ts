@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { indexedDbStorage } from '@/persistence/indexedDbStorage'
 import type { KubernetesResource, K8sEvent } from '@/types/k8s'
 import { clearTraceResourceLinks } from '@/simulation/trace/traceManager'
+import { useMetricsSimulatorStore } from '@/simulation/metrics/metricsSimulatorStore'
 
 // 虚拟 etcd：只负责"存"，不负责业务逻辑。
 //
@@ -46,6 +47,7 @@ export const useEtcdStore = create<EtcdState>()(
         })),
       resetCluster: () => {
         clearTraceResourceLinks()
+        useMetricsSimulatorStore.getState().resetAllProfiles()
         set({ resources: {}, events: [] })
       },
     }),

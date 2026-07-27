@@ -229,4 +229,17 @@ export const RESOURCE_CONCEPTS: Record<ResourceKind, ResourceConcept> = {
       { target: 'Taint / Toleration', description: '可通过节点污点排除或允许在特定 Node 上运行' },
     ],
   },
+  HorizontalPodAutoscaler: {
+    label: 'HorizontalPodAutoscaler (HPA)',
+    scope: '命名空间级',
+    role: '根据负载自动调整副本数',
+    summary: '持续观察目标 Deployment 的 CPU/内存使用率，在 minReplicas 和 maxReplicas 之间自动调整副本数。',
+    details:
+      '本项目用可控的 Metrics Simulator（而不是随机数）提供 CPU/内存使用率，方便在教学场景里演示"负载升高 → HPA 计算期望副本 → Deployment 扩容 → 新 Pod Running → 使用率回落"的完整链路，并简化模拟了冷却时间和缩容稳定窗口。',
+    relationships: [
+      { target: 'Deployment', description: '通过 scaleTargetRef 指向要控制副本数的 Deployment' },
+      { target: 'Pod', description: '间接通过调整 Deployment.spec.replicas 影响 Pod 数量' },
+      { target: 'Metrics Simulator', description: '读取用户设置的可控负载画像，而不是随机 CPU 数据' },
+    ],
+  },
 }

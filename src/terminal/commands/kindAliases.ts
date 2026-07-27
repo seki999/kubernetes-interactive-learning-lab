@@ -42,6 +42,9 @@ export const KIND_ALIASES: Record<string, ResourceKind> = {
   daemonset: 'DaemonSet',
   daemonsets: 'DaemonSet',
   ds: 'DaemonSet',
+  horizontalpodautoscaler: 'HorizontalPodAutoscaler',
+  horizontalpodautoscalers: 'HorizontalPodAutoscaler',
+  hpa: 'HorizontalPodAutoscaler',
 }
 
 /** kubectl get all 会展示的资源类型（贴近真实 kubectl 的默认范围）。 */

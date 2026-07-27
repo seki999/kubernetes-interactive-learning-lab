@@ -6,8 +6,8 @@
 // 系统读取当前虚拟集群状态自动判断是否达成，这样课程操作才能真正
 // 关联到虚拟集群，而不是自我报告"我做完了"。
 //
-// 诚实说明：StatefulSet / DaemonSet / Ingress / HPA / PDB /
-// RBAC / ServiceAccount / NetworkPolicy 这些资源类型当前虚拟集群尚未实现
+// 诚实说明：StatefulSet / Ingress / PDB / RBAC / ServiceAccount /
+// NetworkPolicy 这些资源类型当前虚拟集群尚未实现
 // （见 src/types/k8s/index.ts 的 ResourceKind），对应课程仍然提供完整的
 // 概念讲解、架构图、命令示例和 YAML 示例，但没有 verification 字段——
 // 这些课程只是"讲解型"课程，暂不支持在本模拟器里直接操作验证。
@@ -16,6 +16,7 @@ import type { Course } from '@/types/course'
 import type {
   ConfigMap,
   Deployment,
+  HorizontalPodAutoscaler,
   Node,
   Namespace,
   Pod,
@@ -1392,18 +1393,21 @@ Pod Affinity/Anti-Affinity 涉及"Pod 之间"的调度关系，暂未实现。`,
 实际值超过目标值时自动增加副本数，低于目标值时自动减少，并始终把副本数
 限制在 [minReplicas, maxReplicas] 区间内。这让应用可以应对流量波动，
 而不需要人工干预。`,
-      `诚实说明：本模拟器当前版本尚未实现 HPA 资源类型和指标采集/自动扩缩容
-逻辑，Deployment 的扩缩容目前只能通过 kubectl scale 或修改 YAML 手动触发，
-这一课先讲解 HPA 的概念和 YAML 结构。`,
+      `本模拟器已经实现 HPA：CPU/内存使用率不是随机数，而是由"负载模拟"面板
+（在虚拟集群页面点开某个 Deployment 的详情后可以看到）显式设置的，kubectl top
+和 HPA 读取同一份数据。扩缩容有一个简化的冷却时间和缩容稳定窗口，逻辑和真实
+Kubernetes 一致但时间被压缩到几秒到几十秒，方便在课堂上实际观察到效果。`,
     ],
     diagram: [
-      { label: `Metrics`, description: `采集 CPU 使用率` },
+      { label: `Metrics Simulator`, description: `用户在负载模拟面板里设置 CPU/内存使用率` },
       { label: `HPA`, description: `对比目标值，计算推荐副本数` },
       { label: `Deployment`, description: `副本数被自动调整` },
     ],
     steps: [
       `阅读下面的 HPA YAML 示例`,
-      `思考：如果 targetCPUUtilizationPercentage 设置得很低，会导致什么效果`,
+      `创建一个 minReplicas: 2、maxReplicas: 10 的 web-hpa，目标是 Deployment/web`,
+      `在虚拟集群页面点开 web 的详情面板，用"负载模拟"面板把 CPU 压力调高，观察副本数自动增加`,
+      `思考：如果 averageUtilization 设置得很低，会导致什么效果`,
     ],
     commandExamples: [`kubectl get hpa`, `kubectl describe hpa web-hpa`],
     yamlExample: `apiVersion: autoscaling/v2
@@ -1424,6 +1428,16 @@ spec:
         target:
           type: Utilization
           averageUtilization: 60`,
+    verification: {
+      instruction: `创建名为 web 的 Deployment，再创建一个 scaleTargetRef 指向它、名为 web-hpa 的 HorizontalPodAutoscaler`,
+      verify: (resources) =>
+        resources.some(
+          (resource): resource is HorizontalPodAutoscaler =>
+            resource.kind === 'HorizontalPodAutoscaler' &&
+            resource.metadata.name === 'web-hpa' &&
+            resource.spec.scaleTargetRef.name === 'web'
+        ),
+    },
     quiz: [
       {
         question: `HPA 设置 minReplicas: 2、maxReplicas: 10 表示？`,
@@ -1438,8 +1452,8 @@ spec:
       },
     ],
     commonMistakes: [`把目标利用率设置得过低，导致频繁扩缩容（"抖动"）`],
-    summary: `HPA 让应用能够自动应对流量变化。本模拟器暂未实现该资源类型和
-指标驱动的自动扩缩容能力。`,
+    summary: `HPA 让应用能够自动应对流量变化，本模拟器已支持创建 HPA，并可以用
+"负载模拟"面板显式控制 CPU/内存使用率来触发扩缩容。`,
   },
 
   {

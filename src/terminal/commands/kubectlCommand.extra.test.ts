@@ -495,3 +495,88 @@ spec:
     expect(result.lines[0]).toContain('NotFound')
   })
 })
+
+describe('runKubectlCommand - HPA（get/describe）', () => {
+  function applyWebDeploymentAndHpa(): void {
+    useYamlEditorStore.getState().setContent(`apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+`)
+    const result = runKubectlCommand('kubectl apply -f web-hpa.yaml')
+    expect(result.isError).toBeFalsy()
+  }
+
+  it('get hpa 展示 REFERENCE/MINPODS/MAXPODS/REPLICAS 列', () => {
+    applyWebDeploymentAndHpa()
+    const result = runKubectlCommand('kubectl get hpa')
+    expect(result.lines[0]).toContain('REFERENCE')
+    expect(result.lines[0]).toContain('MINPODS')
+    expect(result.lines[0]).toContain('MAXPODS')
+    const row = result.lines.find((line) => line.includes('web-hpa'))
+    expect(row).toContain('Deployment/web')
+  })
+
+  it('get hpa 在没有 HPA 时提示 No resources found', () => {
+    const result = runKubectlCommand('kubectl get hpa')
+    expect(result.lines[0]).toContain('No resources found')
+  })
+
+  it('describe hpa 展示 Min/Max/Current/Desired Replicas 等字段', () => {
+    applyWebDeploymentAndHpa()
+    const result = runKubectlCommand('kubectl describe hpa web-hpa')
+    expect(result.isError).toBeFalsy()
+    expect(result.lines.some((line) => line.includes('Min Replicas:'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('Max Replicas:'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('Current Replicas:'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('Desired Replicas:'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('CPU Utilization:'))).toBe(true)
+  })
+
+  it('describe hpa 目标不存在时报错 NotFound', () => {
+    const result = runKubectlCommand('kubectl describe hpa no-such')
+    expect(result.isError).toBe(true)
+    expect(result.lines[0]).toContain('NotFound')
+  })
+
+  it('kubectl top pod 读取和 HPA 相同的一份可控指标，而不是随机数', async () => {
+    applyWebDeploymentAndHpa()
+    await vi.advanceTimersByTimeAsync(1000)
+    const result = runKubectlCommand('kubectl top pod')
+    expect(result.lines[0]).toContain('CPU(cores)')
+  })
+})
