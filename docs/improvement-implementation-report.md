@@ -4,7 +4,7 @@
 
 - **HPA 与负载模拟**: 已验证完成。
 - **Job / CronJob / DaemonSet**: 已验证完成，修正了课程文本过时说明。
-- **Deployment 滚动更新**: 完成。加入了 UI 的 ReplicaSet 历史展示。
+- **Deployment 滚动更新**: 完成。加入了 UI 的 ReplicaSet 历史展示，以及 `pause`、`resume`、`progressDeadlineSeconds` 的支持。
 - **请求追踪器 (Trace Viewer)**: 完成。对 UI 进行了升级支持追踪步骤的资源定位操作联动。
 - **Scheduler 解释器**: 完成。增加了原始分与标准分详细拆解，改进了 UI 显示。
 - **StatefulSet**: 新增。实现了简单的控制器来完成 Pod 的有序分配。
