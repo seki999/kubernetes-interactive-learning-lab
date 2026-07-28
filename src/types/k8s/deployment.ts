@@ -5,6 +5,8 @@ export interface DeploymentSpec {
   replicas: number
   selector: LabelSelector
   template: PodTemplateSpec
+  paused?: boolean
+  progressDeadlineSeconds?: number
   strategy?: {
     type: 'RollingUpdate' | 'Recreate'
     rollingUpdate?: {
