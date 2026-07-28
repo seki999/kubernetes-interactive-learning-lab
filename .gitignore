@@ -25,3 +25,10 @@ dist-ssr
 
 # 测试覆盖率报告
 coverage
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

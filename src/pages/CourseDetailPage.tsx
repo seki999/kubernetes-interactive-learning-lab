@@ -22,7 +22,10 @@ export function CourseDetailPage() {
   if (!course) {
     return (
       <div className="text-sm text-slate-500 dark:text-slate-400">
-        没有找到这节课，<Link to="/courses" className="text-sky-600 underline dark:text-sky-400">返回课程中心</Link>
+        没有找到这节课，
+        <Link to="/courses" className="text-sky-600 underline dark:text-sky-400">
+          返回课程中心
+        </Link>
       </div>
     )
   }
@@ -199,7 +202,10 @@ function CourseDetailBody({ course }: { course: (typeof COURSES)[number] }) {
                         name={`quiz-${course.id}-${questionIndex}`}
                         checked={selected}
                         onChange={() =>
-                          setQuizAnswers((prev) => ({ ...prev, [questionIndex]: optionIndex }))
+                          setQuizAnswers((prev) => ({
+                            ...prev,
+                            [questionIndex]: optionIndex,
+                          }))
                         }
                         disabled={quizSubmitted}
                       />

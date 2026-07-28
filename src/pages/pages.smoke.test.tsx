@@ -32,23 +32,53 @@ beforeEach(() => {
 
 describe('页面组件冒烟测试：都能正常挂载，不抛出渲染异常', () => {
   it('HomePage', () => {
-    expect(() => render(<MemoryRouter><HomePage /></MemoryRouter>)).not.toThrow()
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <HomePage />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
   })
 
   it('NotFoundPage', () => {
-    expect(() => render(<MemoryRouter><NotFoundPage /></MemoryRouter>)).not.toThrow()
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <NotFoundPage />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
   })
 
   it('ClusterPage', () => {
-    expect(() => render(<MemoryRouter><ClusterPage /></MemoryRouter>)).not.toThrow()
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <ClusterPage />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
   })
 
   it('YamlLabPage', () => {
-    expect(() => render(<MemoryRouter><YamlLabPage /></MemoryRouter>)).not.toThrow()
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <YamlLabPage />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
   })
 
   it('CourseCenterPage', () => {
-    expect(() => render(<MemoryRouter><CourseCenterPage /></MemoryRouter>)).not.toThrow()
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <CourseCenterPage />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
   })
 
   it('CourseDetailPage（带真实课程 id 参数）', () => {
@@ -64,7 +94,13 @@ describe('页面组件冒烟测试：都能正常挂载，不抛出渲染异常'
   })
 
   it('LabListPage', () => {
-    expect(() => render(<MemoryRouter><LabListPage /></MemoryRouter>)).not.toThrow()
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <LabListPage />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
   })
 
   it('LabRunnerPage（带真实实验 id 参数）', () => {
@@ -80,14 +116,26 @@ describe('页面组件冒烟测试：都能正常挂载，不抛出渲染异常'
   })
 
   it('FaultLabPage', () => {
-    expect(() => render(<MemoryRouter><FaultLabPage /></MemoryRouter>)).not.toThrow()
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <FaultLabPage />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
   })
 
   it('ProgressPage', () => {
     // ProgressPage 里用到 URL.createObjectURL（导出功能），jsdom 没有实现，
     // 这里只 mock 到"存在这个函数"这个程度，不测试导出的具体行为。
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(), revokeObjectURL: vi.fn() })
-    expect(() => render(<MemoryRouter><ProgressPage /></MemoryRouter>)).not.toThrow()
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <ProgressPage />
+        </MemoryRouter>
+      )
+    ).not.toThrow()
     vi.unstubAllGlobals()
   })
 })

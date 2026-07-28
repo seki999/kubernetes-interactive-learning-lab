@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { emitDomainEvent, resetDomainEventListeners, subscribeDomainEvents } from './eventBus'
+import {
+  emitDomainEvent,
+  resetDomainEventListeners,
+  subscribeDomainEvents,
+} from './eventBus'
 
 afterEach(() => {
   resetDomainEventListeners()
@@ -10,7 +14,10 @@ describe('event bus', () => {
     const listener = vi.fn()
     subscribeDomainEvents(listener)
 
-    emitDomainEvent({ type: 'POD_SCHEDULED', payload: { podName: 'web-1', nodeName: 'node-1' } })
+    emitDomainEvent({
+      type: 'POD_SCHEDULED',
+      payload: { podName: 'web-1', nodeName: 'node-1' },
+    })
 
     expect(listener).toHaveBeenCalledWith({
       type: 'POD_SCHEDULED',

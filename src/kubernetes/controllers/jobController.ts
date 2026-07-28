@@ -49,7 +49,7 @@ export function reconcileJob(jobInput: Job): void {
       startTime: current.status.startTime ?? new Date().toISOString(),
       completionTime:
         complete || exhausted
-          ? current.status.completionTime ?? new Date().toISOString()
+          ? (current.status.completionTime ?? new Date().toISOString())
           : undefined,
       condition: complete ? 'Complete' : exhausted ? 'Failed' : 'Running',
     },
@@ -135,10 +135,15 @@ export function reconcileJob(jobInput: Job): void {
   }
 
   if (slots > 0) {
-    patchResourceRaw<Job>('Job', job.metadata.name, job.metadata.namespace, (current) => ({
-      ...current,
-      status: { ...current.status, active: active + slots },
-    }))
+    patchResourceRaw<Job>(
+      'Job',
+      job.metadata.name,
+      job.metadata.namespace,
+      (current) => ({
+        ...current,
+        status: { ...current.status, active: active + slots },
+      })
+    )
   }
 }
 
@@ -146,7 +151,9 @@ export function reconcileJob(jobInput: Job): void {
 export function finishJobPod(podName: string, namespace: string | undefined): void {
   const pod = getResource<Pod>('Pod', podName, namespace)
   if (!pod || pod.status.phase !== 'Running') return
-  const owner = pod.metadata.ownerReferences?.find((reference) => reference.kind === 'Job')
+  const owner = pod.metadata.ownerReferences?.find(
+    (reference) => reference.kind === 'Job'
+  )
   if (!owner) return
   patchResourceRaw<Pod>('Pod', podName, namespace, (current) => ({
     ...current,

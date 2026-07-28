@@ -46,8 +46,8 @@ describe('runKubectlCommand - describe pod/deployment/service', () => {
       'kubectl create deployment broken --image=nginx:not-exist --replicas=1'
     )
     await vi.advanceTimersByTimeAsync(1000)
-    const podName = runKubectlCommand('kubectl get pods -o wide').lines
-      .find((line) => line.startsWith('broken-'))
+    const podName = runKubectlCommand('kubectl get pods -o wide')
+      .lines.find((line) => line.startsWith('broken-'))
       ?.split(/\s+/)[0] as string
 
     const result = runKubectlCommand(`kubectl describe pod ${podName}`)
@@ -78,8 +78,12 @@ describe('runKubectlCommand - describe pod/deployment/service', () => {
     await vi.advanceTimersByTimeAsync(1000)
 
     const result = runKubectlCommand('kubectl describe deployment')
-    const webIndex = result.lines.findIndex((line) => line.includes('Name:') && line.includes('web'))
-    const apiIndex = result.lines.findIndex((line) => line.includes('Name:') && line.includes('api'))
+    const webIndex = result.lines.findIndex(
+      (line) => line.includes('Name:') && line.includes('web')
+    )
+    const apiIndex = result.lines.findIndex(
+      (line) => line.includes('Name:') && line.includes('api')
+    )
     expect(webIndex).toBeGreaterThanOrEqual(0)
     expect(apiIndex).toBeGreaterThan(webIndex)
   })
@@ -178,9 +182,9 @@ describe('formatResourceTable - wide/命名空间/各资源类型列', () => {
 
     const result = runKubectlCommand('kubectl get configmaps --all-namespaces')
     expect(result.lines[0]).toContain('NAMESPACE')
-    expect(result.lines.some((line) => line.includes('demo') && line.includes('cfg'))).toBe(
-      true
-    )
+    expect(
+      result.lines.some((line) => line.includes('demo') && line.includes('cfg'))
+    ).toBe(true)
   })
 
   it('kubectl get secrets 展示 TYPE 和 DATA 列', () => {
@@ -197,18 +201,20 @@ describe('formatResourceTable - wide/命名空间/各资源类型列', () => {
   })
 
   it('kubectl get pvc 展示 CAPACITY 和 ACCESS MODES 列', () => {
-    useYamlEditorStore.getState().setContent(
-      [
-        'apiVersion: v1',
-        'kind: PersistentVolumeClaim',
-        'metadata:',
-        '  name: data-pvc',
-        'spec:',
-        '  storageRequest: 1Gi',
-        '  accessModes:',
-        '    - ReadWriteOnce',
-      ].join('\n')
-    )
+    useYamlEditorStore
+      .getState()
+      .setContent(
+        [
+          'apiVersion: v1',
+          'kind: PersistentVolumeClaim',
+          'metadata:',
+          '  name: data-pvc',
+          'spec:',
+          '  storageRequest: 1Gi',
+          '  accessModes:',
+          '    - ReadWriteOnce',
+        ].join('\n')
+      )
     runKubectlCommand('kubectl apply -f pvc.yaml')
 
     const result = runKubectlCommand('kubectl get pvc')

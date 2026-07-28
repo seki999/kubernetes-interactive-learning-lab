@@ -36,7 +36,8 @@ export function validateResource(resource: KubernetesResource): string[] {
   if (
     resource.kind === 'Deployment' ||
     resource.kind === 'ReplicaSet' ||
-    resource.kind === 'DaemonSet'
+    resource.kind === 'DaemonSet' ||
+    resource.kind === 'StatefulSet'
   ) {
     const matchLabels = resource.spec.selector?.matchLabels
     if (!matchLabels || Object.keys(matchLabels).length === 0) {
@@ -51,7 +52,7 @@ export function validateResource(resource: KubernetesResource): string[] {
       }
     }
     const containers = resource.spec.template?.spec?.containers ?? []
-    containers.forEach((container, index) => {
+    containers.forEach((container: any, index: number) => {
       if (!container.image) {
         errors.push(`第 ${index + 1} 个容器缺少 image`)
       }
@@ -62,8 +63,7 @@ export function validateResource(resource: KubernetesResource): string[] {
     ) {
       const rolling = resource.spec.strategy.rollingUpdate
       const surge = rolling?.maxSurge ?? resource.spec.strategy.maxSurge
-      const unavailable =
-        rolling?.maxUnavailable ?? resource.spec.strategy.maxUnavailable
+      const unavailable = rolling?.maxUnavailable ?? resource.spec.strategy.maxUnavailable
       if (surge !== undefined && !isNonNegativeIntOrPercent(surge)) {
         errors.push('maxSurge 必须是非负整数或百分比（例如 25%）')
       }
@@ -74,7 +74,7 @@ export function validateResource(resource: KubernetesResource): string[] {
   }
 
   if (resource.kind === 'Pod') {
-    resource.spec.containers.forEach((container, index) => {
+    resource.spec.containers.forEach((container: any, index: number) => {
       if (!container.image) {
         errors.push(`第 ${index + 1} 个容器缺少 image`)
       }
@@ -85,7 +85,7 @@ export function validateResource(resource: KubernetesResource): string[] {
     if (!resource.spec.template?.spec?.containers?.length) {
       errors.push('Job 必须设置 spec.template.spec.containers')
     }
-    resource.spec.template?.spec?.containers?.forEach((container, index) => {
+    resource.spec.template?.spec?.containers?.forEach((container: any, index: number) => {
       if (!container.image) errors.push(`第 ${index + 1} 个容器缺少 image`)
     })
     for (const [name, value] of [
@@ -124,10 +124,12 @@ export function validateResource(resource: KubernetesResource): string[] {
     if (!resource.spec.metrics || resource.spec.metrics.length === 0) {
       errors.push('HorizontalPodAutoscaler 必须至少设置一个 metrics')
     }
-    resource.spec.metrics?.forEach((metric, index) => {
+    resource.spec.metrics?.forEach((metric: any, index: number) => {
       const utilization = metric.resource?.target?.averageUtilization
       if (!Number.isInteger(utilization) || utilization <= 0) {
-        errors.push(`第 ${index + 1} 个 metrics 的 averageUtilization 必须是大于 0 的整数`)
+        errors.push(
+          `第 ${index + 1} 个 metrics 的 averageUtilization 必须是大于 0 的整数`
+        )
       }
     })
   }

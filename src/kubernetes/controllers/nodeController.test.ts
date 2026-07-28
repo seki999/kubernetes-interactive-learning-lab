@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createResource, getResource, listResources, updateResource } from '@/kubernetes/api-server/apiServer'
+import {
+  createResource,
+  getResource,
+  listResources,
+  updateResource,
+} from '@/kubernetes/api-server/apiServer'
 import { useEtcdStore } from '@/kubernetes/api-server/store'
 import type { Node, Pod } from '@/types/k8s'
 
@@ -21,7 +26,13 @@ function createPod(name: string): Pod {
   return createResource<Pod>({
     apiVersion: 'v1',
     kind: 'Pod',
-    metadata: { uid: '', name, namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+    metadata: {
+      uid: '',
+      name,
+      namespace: 'default',
+      resourceVersion: '',
+      creationTimestamp: '',
+    },
     spec: { containers: [{ name: 'app', image: 'nginx:1.27' }] },
     status: { phase: 'Pending', containerStatuses: [] },
   })
@@ -46,7 +57,9 @@ describe('Node 控制器 - 故障重新调度', () => {
     }))
 
     const rescheduled = getResource<Pod>('Pod', 'web-1', 'default')
-    expect(rescheduled?.status.nodeName).toBe(originalNode === 'node-1' ? 'node-2' : 'node-1')
+    expect(rescheduled?.status.nodeName).toBe(
+      originalNode === 'node-1' ? 'node-2' : 'node-1'
+    )
   })
 
   it('所有节点都不可用时，Pod 重新调度失败会回到 Pending', () => {

@@ -141,8 +141,14 @@ describe('selectNodeForPod', () => {
       [node],
       []
     )
-    expect(decision.candidates[0].checks.find((check) => check.plugin === 'NodeSelector')?.passed).toBe(false)
-    expect(decision.candidates[0].checks.find((check) => check.plugin === 'TaintToleration')?.passed).toBe(false)
+    expect(
+      decision.candidates[0].checks.find((check) => check.plugin === 'NodeSelector')
+        ?.passed
+    ).toBe(false)
+    expect(
+      decision.candidates[0].checks.find((check) => check.plugin === 'TaintToleration')
+        ?.passed
+    ).toBe(false)
     expect(decision.summary).toContain('调度失败')
   })
 
@@ -156,9 +162,13 @@ describe('selectNodeForPod', () => {
         affinity: {
           nodeAffinity: {
             requiredDuringSchedulingIgnoredDuringExecution: {
-              nodeSelectorTerms: [{
-                matchExpressions: [{ key: 'zone', operator: 'In', values: ['tokyo-a'] }],
-              }],
+              nodeSelectorTerms: [
+                {
+                  matchExpressions: [
+                    { key: 'zone', operator: 'In', values: ['tokyo-a'] },
+                  ],
+                },
+              ],
             },
           },
         },
@@ -166,7 +176,10 @@ describe('selectNodeForPod', () => {
     })
     const decision = explainSchedulingDecision(pod, [node], [])
     expect(decision.selectedNode).toBe('node-1')
-    expect(decision.candidates[0].checks.find((check) => check.plugin === 'NodeAffinity')?.passed).toBe(true)
+    expect(
+      decision.candidates[0].checks.find((check) => check.plugin === 'NodeAffinity')
+        ?.passed
+    ).toBe(true)
   })
 
   it('支持 Pod Affinity 与 Pod Anti-Affinity 的 required 过滤', () => {
@@ -182,15 +195,19 @@ describe('selectNodeForPod', () => {
         ...makePod().spec,
         affinity: {
           podAffinity: {
-            requiredDuringSchedulingIgnoredDuringExecution: [{
-              topologyKey: 'zone',
-              labelSelector: { matchLabels: { app: 'db' } },
-            }],
+            requiredDuringSchedulingIgnoredDuringExecution: [
+              {
+                topologyKey: 'zone',
+                labelSelector: { matchLabels: { app: 'db' } },
+              },
+            ],
           },
         },
       },
     })
-    expect(explainSchedulingDecision(affinityPod, [node], [peer]).selectedNode).toBe('node-1')
+    expect(explainSchedulingDecision(affinityPod, [node], [peer]).selectedNode).toBe(
+      'node-1'
+    )
 
     const antiAffinityPod = makePod({
       spec: {
@@ -200,7 +217,9 @@ describe('selectNodeForPod', () => {
         },
       },
     })
-    expect(explainSchedulingDecision(antiAffinityPod, [node], [peer]).selectedNode).toBeUndefined()
+    expect(
+      explainSchedulingDecision(antiAffinityPod, [node], [peer]).selectedNode
+    ).toBeUndefined()
   })
 
   it('简化拓扑分散会过滤超过 maxSkew 的节点并输出真实分数', () => {
@@ -218,16 +237,20 @@ describe('selectNodeForPod', () => {
       metadata: { ...makePod().metadata, labels: { app: 'web' } },
       spec: {
         ...makePod().spec,
-        topologySpreadConstraints: [{
-          maxSkew: 1,
-          topologyKey: 'zone',
-          whenUnsatisfiable: 'DoNotSchedule',
-          labelSelector: { matchLabels: { app: 'web' } },
-        }],
+        topologySpreadConstraints: [
+          {
+            maxSkew: 1,
+            topologyKey: 'zone',
+            whenUnsatisfiable: 'DoNotSchedule',
+            labelSelector: { matchLabels: { app: 'web' } },
+          },
+        ],
       },
     })
     const decision = explainSchedulingDecision(pod, [nodeA, nodeB], [occupant])
     expect(decision.selectedNode).toBe('node-b')
-    expect(decision.candidates.find((item) => item.nodeName === 'node-b')?.score).toBeGreaterThan(0)
+    expect(
+      decision.candidates.find((item) => item.nodeName === 'node-b')?.score
+    ).toBeGreaterThan(0)
   })
 })

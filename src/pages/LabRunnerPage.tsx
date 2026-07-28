@@ -17,7 +17,10 @@ export function LabRunnerPage() {
   if (!lab) {
     return (
       <div className="text-sm text-slate-500 dark:text-slate-400">
-        没有找到这个实验，<Link to="/labs" className="text-sky-600 underline dark:text-sky-400">返回实验任务</Link>
+        没有找到这个实验，
+        <Link to="/labs" className="text-sky-600 underline dark:text-sky-400">
+          返回实验任务
+        </Link>
       </div>
     )
   }
@@ -111,7 +114,9 @@ function LabRunnerBody({ lab }: { lab: (typeof LABS)[number] }) {
       <Section title="操作提示">
         <div className="space-y-1 text-sm">
           {lab.hints.slice(0, revealedHints).map((hint, index) => (
-            <p key={index}>{index + 1}. {hint}</p>
+            <p key={index}>
+              {index + 1}. {hint}
+            </p>
           ))}
         </div>
         {revealedHints < lab.hints.length && (

@@ -80,7 +80,11 @@ function metricsKeyForPod(pod: Pod): string | undefined {
     (reference) => reference.kind === 'ReplicaSet'
   )
   if (!replicaSetRef) return undefined
-  const replicaSet = getResource<ReplicaSet>('ReplicaSet', replicaSetRef.name, pod.metadata.namespace)
+  const replicaSet = getResource<ReplicaSet>(
+    'ReplicaSet',
+    replicaSetRef.name,
+    pod.metadata.namespace
+  )
   const deploymentRef = replicaSet?.metadata.ownerReferences?.find(
     (reference) => reference.kind === 'Deployment'
   )
@@ -135,20 +139,26 @@ export function runTop(argv: string[]): CommandOutput {
   }
 
   if (target === 'node' || target === 'nodes') {
-    const allPods = listResources<Pod>('Pod').filter((pod) => pod.status.phase === 'Running')
+    const allPods = listResources<Pod>('Pod').filter(
+      (pod) => pod.status.phase === 'Running'
+    )
     const nodes = listResources<Node>('Node')
     const rows = nodes.map((node) => {
       const allocatableCpu = parseCpuToMillicores(node.status.allocatable.cpu)
       const allocatableMemory = parseMemoryToMebibytes(node.status.allocatable.memory)
       // Node 的用量是它上面所有 Pod 用量的累加，而不是脱离 Pod 单独模拟的随机数——
       // 这样 kubectl top pod 和 kubectl top node 两个视图的数据是一致、可解释的。
-      const podsOnNode = allPods.filter((pod) => pod.status.nodeName === node.metadata.name)
+      const podsOnNode = allPods.filter(
+        (pod) => pod.status.nodeName === node.metadata.name
+      )
       const { usedCpu, usedMemory } = podsOnNode.reduce(
         (total, pod) => {
           const requests = pod.spec.containers.reduce(
             (sum, container) => ({
               cpu: sum.cpu + parseCpuToMillicores(container.resources?.requests?.cpu),
-              memory: sum.memory + parseMemoryToMebibytes(container.resources?.requests?.memory),
+              memory:
+                sum.memory +
+                parseMemoryToMebibytes(container.resources?.requests?.memory),
             }),
             { cpu: 0, memory: 0 }
           )
@@ -158,7 +168,8 @@ export function runTop(argv: string[]): CommandOutput {
             : DEFAULT_LOAD_PROFILE
           return {
             usedCpu: total.usedCpu + resourceUsage(requests.cpu, profile.cpuPercent),
-            usedMemory: total.usedMemory + resourceUsage(requests.memory, profile.memoryPercent),
+            usedMemory:
+              total.usedMemory + resourceUsage(requests.memory, profile.memoryPercent),
           }
         },
         { usedCpu: 0, usedMemory: 0 }

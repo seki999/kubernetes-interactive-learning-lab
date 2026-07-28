@@ -72,7 +72,8 @@ function nodeMatches(daemonSet: DaemonSet, node: Node): boolean {
 function ownedPods(daemonSet: DaemonSet): Pod[] {
   return listResources<Pod>('Pod', daemonSet.metadata.namespace).filter((pod) =>
     pod.metadata.ownerReferences?.some(
-      (reference) => reference.kind === 'DaemonSet' && reference.uid === daemonSet.metadata.uid
+      (reference) =>
+        reference.kind === 'DaemonSet' && reference.uid === daemonSet.metadata.uid
     )
   )
 }
@@ -174,7 +175,11 @@ export function syncDaemonSetStatusForPod(pod: Pod): void {
     (reference) => reference.kind === 'DaemonSet'
   )
   if (!owner) return
-  const daemonSet = getResource<DaemonSet>('DaemonSet', owner.name, pod.metadata.namespace)
+  const daemonSet = getResource<DaemonSet>(
+    'DaemonSet',
+    owner.name,
+    pod.metadata.namespace
+  )
   if (!daemonSet) return
   updateStatus(daemonSet, listResources<Node>('Node'))
 }
@@ -182,8 +187,11 @@ export function syncDaemonSetStatusForPod(pod: Pod): void {
 /** DaemonSet 自身被创建/更新时调用：对比符合条件的 Node 和现有 Pod，创建/删除/重建到一致状态。 */
 export function reconcileDaemonSet(dsInput: DaemonSet): void {
   const daemonSet =
-    getResource<DaemonSet>('DaemonSet', dsInput.metadata.name, dsInput.metadata.namespace) ??
-    dsInput
+    getResource<DaemonSet>(
+      'DaemonSet',
+      dsInput.metadata.name,
+      dsInput.metadata.namespace
+    ) ?? dsInput
   const allNodes = listResources<Node>('Node')
   const matchingNodes = allNodes.filter((node) => nodeMatches(daemonSet, node))
   const matchingNodeNames = new Set(matchingNodes.map((node) => node.metadata.name))

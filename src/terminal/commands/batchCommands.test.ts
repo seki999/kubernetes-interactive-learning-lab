@@ -26,11 +26,19 @@ describe('kubectl Job / CronJob 命令', () => {
   afterEach(() => vi.useRealTimers())
 
   it('支持 create/get/describe/logs/delete job', async () => {
-    expect(runKubectlCommand('kubectl create job quick --image=busybox:1.36').isError).toBeFalsy()
+    expect(
+      runKubectlCommand('kubectl create job quick --image=busybox:1.36').isError
+    ).toBeFalsy()
     expect(runKubectlCommand('kubectl get jobs').lines.join('\n')).toContain('quick')
-    expect(runKubectlCommand('kubectl describe job quick').lines.join('\n')).toContain('Backoff Limit')
-    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + JOB_COMPLETION_DELAY_MS + 50)
-    expect(runKubectlCommand('kubectl logs job/quick').lines.join('\n')).toContain('容器已启动')
+    expect(runKubectlCommand('kubectl describe job quick').lines.join('\n')).toContain(
+      'Backoff Limit'
+    )
+    await vi.advanceTimersByTimeAsync(
+      KUBELET_RUNNING_DELAY_MS + JOB_COMPLETION_DELAY_MS + 50
+    )
+    expect(runKubectlCommand('kubectl logs job/quick').lines.join('\n')).toContain(
+      '容器已启动'
+    )
     expect(runKubectlCommand('kubectl delete job quick').lines[0]).toContain('deleted')
   })
 
@@ -38,20 +46,34 @@ describe('kubectl Job / CronJob 命令', () => {
     createResource<CronJob>({
       apiVersion: 'batch/v1',
       kind: 'CronJob',
-      metadata: { uid: '', name: 'report', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'report',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
         schedule: '*/5 * * * *',
         jobTemplate: {
           spec: {
-            template: { spec: { containers: [{ name: 'report', image: 'busybox:1.36' }] } },
+            template: {
+              spec: { containers: [{ name: 'report', image: 'busybox:1.36' }] },
+            },
           },
         },
       },
       status: { active: [], simulatedTime: '2026-01-01T00:00:00.000Z' },
     })
     expect(runKubectlCommand('kubectl get cronjobs').lines.join('\n')).toContain('report')
-    expect(runKubectlCommand('kubectl describe cronjob report').lines.join('\n')).toContain('Schedule')
-    expect(runKubectlCommand('kubectl create job run-now --from=cronjob/report').lines[0]).toContain('created')
-    expect(runKubectlCommand('kubectl delete cronjob report').lines[0]).toContain('deleted')
+    expect(
+      runKubectlCommand('kubectl describe cronjob report').lines.join('\n')
+    ).toContain('Schedule')
+    expect(
+      runKubectlCommand('kubectl create job run-now --from=cronjob/report').lines[0]
+    ).toContain('created')
+    expect(runKubectlCommand('kubectl delete cronjob report').lines[0]).toContain(
+      'deleted'
+    )
   })
 })

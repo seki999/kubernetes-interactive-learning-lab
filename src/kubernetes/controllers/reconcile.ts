@@ -5,8 +5,12 @@ import { reconcilePvc, reconcilePv } from './pvcController'
 import { reconcileNode } from './nodeController'
 import { reconcileJob } from './jobController'
 import { reconcileCronJob } from './cronJobController'
-import { reconcileDaemonSet, reconcileDaemonSetsForNodeChange } from './daemonSetController'
+import {
+  reconcileDaemonSet,
+  reconcileDaemonSetsForNodeChange,
+} from './daemonSetController'
 import { reconcileHpa } from './hpaController'
+import { reconcileStatefulSet } from './statefulSetController'
 import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
 import type {
   Deployment,
@@ -20,6 +24,7 @@ import type {
   CronJob,
   DaemonSet,
   HorizontalPodAutoscaler,
+  StatefulSet,
 } from '@/types/k8s'
 
 /**
@@ -75,6 +80,9 @@ export function runControllersFor(
       break
     case 'HorizontalPodAutoscaler':
       reconcileHpa(resource as HorizontalPodAutoscaler)
+      break
+    case 'StatefulSet':
+      reconcileStatefulSet(resource as StatefulSet)
       break
     default:
       break

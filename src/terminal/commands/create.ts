@@ -74,7 +74,9 @@ export function runCreate(argv: string[]): CommandOutput {
 
   if (subcommand === 'job') {
     if (!name) {
-      return fail(['error: 请指定 Job 名称，例如 kubectl create job report --image=busybox'])
+      return fail([
+        'error: 请指定 Job 名称，例如 kubectl create job report --image=busybox',
+      ])
     }
     const namespace = resolveNamespace(flags)
     const from = toStringFlag(flags.from)

@@ -4,7 +4,7 @@
 
 一个完全基于前端技术实现的 Kubernetes 中文交互式学习网站：不依赖后端服务器、不依赖数据库、不连接真实 Kubernetes 集群，所有 kubectl 命令、YAML 编辑、资源调度、控制器行为都在浏览器里用一套简化的虚拟 API Server / Scheduler / Kubelet / Controller 模拟出来，配合 30 节图文课程、25 个动手实验、19 个故障排查场景，帮助中文用户直观理解 Kubernetes 的核心概念。
 
-在线体验：`https://<你的 GitHub 用户名>.github.io/kubernetes-interactive-learning-lab/`（需要先按下文"部署到 GitHub Pages"开启）。
+在线体验：`https://seki999.github.io/kubernetes-interactive-learning-lab/#/`（需要先按下文"部署到 GitHub Pages"开启）。
 
 ## 功能总览
 
@@ -79,7 +79,7 @@ src/
 
 1. 在 GitHub 仓库的 Settings → Pages 里，把 Source 改成 "GitHub Actions"。
 2. push 到 `main` 分支后，等待 Actions 里的 `Deploy to GitHub Pages` 工作流跑完。
-3. 访问 `https://<你的 GitHub 用户名>.github.io/<仓库名>/` 即可。
+3. 访问 `https://seki999.github.io/kubernetes-interactive-learning-lab/#/` 即可。
 
 `vite.config.ts` 里 `base` 使用相对路径 `'./'`，路由使用 `HashRouter`，因此无论部署在 GitHub Pages 的子路径下还是绑定到自定义域名根路径，都不需要额外修改配置。
 

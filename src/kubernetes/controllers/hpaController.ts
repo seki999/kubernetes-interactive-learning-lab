@@ -13,7 +13,12 @@ import {
   useMetricsSimulatorStore,
   type LoadProfile,
 } from '@/simulation/metrics/metricsSimulatorStore'
-import type { Deployment, HorizontalPodAutoscaler, HpaResourceMetric, Pod } from '@/types/k8s'
+import type {
+  Deployment,
+  HorizontalPodAutoscaler,
+  HpaResourceMetric,
+  Pod,
+} from '@/types/k8s'
 
 /**
  * HPA 控制器（对应需求文档"优先级 6：实现 HPA 和可控负载模拟"）。
@@ -61,7 +66,11 @@ export function reconcileHpa(hpaInput: HorizontalPodAutoscaler): void {
       (current) => ({ ...current, status: { ...current.status, message } })
     )
     emitEvent({
-      involvedObject: { kind: 'HorizontalPodAutoscaler', name: hpa.metadata.name, namespace },
+      involvedObject: {
+        kind: 'HorizontalPodAutoscaler',
+        name: hpa.metadata.name,
+        namespace,
+      },
       type: 'Warning',
       reason: 'FailedGetScale',
       message,
@@ -103,10 +112,14 @@ export function reconcileHpa(hpaInput: HorizontalPodAutoscaler): void {
   )
 
   const now = Date.now()
-  const lastScaleTime = hpa.status.lastScaleTime ? Date.parse(hpa.status.lastScaleTime) : 0
+  const lastScaleTime = hpa.status.lastScaleTime
+    ? Date.parse(hpa.status.lastScaleTime)
+    : 0
   const cooldownElapsed = now - lastScaleTime >= HPA_SCALE_COOLDOWN_MS
   const cpuMetric = recommendations.find((item) => item.metric.resource.name === 'cpu')
-  const memoryMetric = recommendations.find((item) => item.metric.resource.name === 'memory')
+  const memoryMetric = recommendations.find(
+    (item) => item.metric.resource.name === 'memory'
+  )
 
   let appliedReplicas = currentReplicas
   let scaled = false
@@ -151,7 +164,9 @@ export function reconcileHpa(hpaInput: HorizontalPodAutoscaler): void {
         desiredReplicas,
         currentCPUUtilizationPercentage: cpuMetric?.utilization,
         currentMemoryUtilizationPercentage: memoryMetric?.utilization,
-        lastScaleTime: scaled ? new Date(now).toISOString() : current.status.lastScaleTime,
+        lastScaleTime: scaled
+          ? new Date(now).toISOString()
+          : current.status.lastScaleTime,
         lowUtilizationSince,
         message,
       },
@@ -170,22 +185,34 @@ export function reconcileHpa(hpaInput: HorizontalPodAutoscaler): void {
 
   if (scaled && appliedReplicas !== currentReplicas) {
     emitEvent({
-      involvedObject: { kind: 'HorizontalPodAutoscaler', name: hpa.metadata.name, namespace },
+      involvedObject: {
+        kind: 'HorizontalPodAutoscaler',
+        name: hpa.metadata.name,
+        namespace,
+      },
       type: 'Normal',
       reason: 'SuccessfulRescale',
       message: `New size: ${appliedReplicas}; reason: ${primary?.metric.resource.name ?? 'cpu'} resource utilization ${primary?.utilization ?? 0}%`,
     })
     // 复用 kubectl scale 同一条路径（updateResource 触发 reconcileDeployment），
     // 这样滚动更新、拓扑、动画、追踪器都不需要为 HPA 再单独接一遍。
-    updateResource<Deployment>('Deployment', deployment.metadata.name, namespace, (current) => ({
-      ...current,
-      spec: { ...current.spec, replicas: appliedReplicas },
-    }))
+    updateResource<Deployment>(
+      'Deployment',
+      deployment.metadata.name,
+      namespace,
+      (current) => ({
+        ...current,
+        spec: { ...current.spec, replicas: appliedReplicas },
+      })
+    )
   }
 }
 
 /** 找到目标 Deployment 上的全部 HPA（正常情况下最多一个）并重新调谐。 */
-function reconcileHpasForTarget(namespace: string | undefined, deploymentName: string): void {
+function reconcileHpasForTarget(
+  namespace: string | undefined,
+  deploymentName: string
+): void {
   const hpas = listResources<HorizontalPodAutoscaler>(
     'HorizontalPodAutoscaler',
     namespace
@@ -229,21 +256,32 @@ export function adjustMemoryLoad(
 }
 
 /** 突发流量：CPU 使用率一次性跳到高位，模拟秒杀/突发请求。 */
-export function applyBurstTraffic(namespace: string | undefined, deploymentName: string): void {
+export function applyBurstTraffic(
+  namespace: string | undefined,
+  deploymentName: string
+): void {
   const key = metricsProfileKey(namespace, deploymentName)
   useMetricsSimulatorStore.getState().setCpuPercent(key, 180)
   reconcileHpasForTarget(namespace, deploymentName)
 }
 
 /** 周期流量：在低谷（30%）和高峰（150%）之间切换，每点一次前进一个阶段。 */
-export function applyPeriodicTraffic(namespace: string | undefined, deploymentName: string): void {
+export function applyPeriodicTraffic(
+  namespace: string | undefined,
+  deploymentName: string
+): void {
   const key = metricsProfileKey(namespace, deploymentName)
   const current = useMetricsSimulatorStore.getState().getProfile(key)
-  useMetricsSimulatorStore.getState().setCpuPercent(key, current.cpuPercent >= 100 ? 30 : 150)
+  useMetricsSimulatorStore
+    .getState()
+    .setCpuPercent(key, current.cpuPercent >= 100 ? 30 : 150)
   reconcileHpasForTarget(namespace, deploymentName)
 }
 
-export function resetLoadProfile(namespace: string | undefined, deploymentName: string): void {
+export function resetLoadProfile(
+  namespace: string | undefined,
+  deploymentName: string
+): void {
   const key = metricsProfileKey(namespace, deploymentName)
   useMetricsSimulatorStore.getState().resetProfile(key)
   reconcileHpasForTarget(namespace, deploymentName)
@@ -268,7 +306,8 @@ export function simulateSinglePodFailure(
     (pod) =>
       pod.status.phase === 'Running' &&
       pod.metadata.ownerReferences?.some(
-        (reference) => reference.kind === 'ReplicaSet' && replicaSetUids.has(reference.uid)
+        (reference) =>
+          reference.kind === 'ReplicaSet' && replicaSetUids.has(reference.uid)
       )
   )
   if (!target) return false

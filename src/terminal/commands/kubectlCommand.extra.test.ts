@@ -107,12 +107,12 @@ describe('runKubectlCommand - taint', () => {
   })
 
   it('打上 taint 再去掉（key=value:Effect-）', () => {
-    const tainted = runKubectlCommand(
-      'kubectl taint node node-1 special=true:NoSchedule'
-    )
+    const tainted = runKubectlCommand('kubectl taint node node-1 special=true:NoSchedule')
     expect(tainted.lines[0]).toContain('tainted')
 
-    const untainted = runKubectlCommand('kubectl taint node node-1 special=true:NoSchedule-')
+    const untainted = runKubectlCommand(
+      'kubectl taint node node-1 special=true:NoSchedule-'
+    )
     expect(untainted.lines[0]).toContain('untainted')
   })
 
@@ -202,9 +202,9 @@ describe('runKubectlCommand - config / api-resources / explain', () => {
     const result = runKubectlCommand('kubectl cluster-info')
     expect(result.isError).toBeFalsy()
     expect(result.lines.some((line) => line.includes('1 个 Node'))).toBe(true)
-    expect(result.lines.some((line) => line.includes('不连接任何真实 Kubernetes 集群'))).toBe(
-      true
-    )
+    expect(
+      result.lines.some((line) => line.includes('不连接任何真实 Kubernetes 集群'))
+    ).toBe(true)
   })
 
   // auth / diff 是课程内容（RBAC 课、综合实战课）里直接展示给用户的命令示例，
@@ -254,8 +254,8 @@ describe('runKubectlCommand - logs', () => {
       'kubectl create deployment broken --image=nginx:not-exist --replicas=1'
     )
     await vi.advanceTimersByTimeAsync(1000)
-    const podName = runKubectlCommand('kubectl get pods -o wide').lines
-      .find((line) => line.startsWith('broken-'))
+    const podName = runKubectlCommand('kubectl get pods -o wide')
+      .lines.find((line) => line.startsWith('broken-'))
       ?.split(/\s+/)[0] as string
 
     const result = runKubectlCommand(`kubectl logs ${podName}`)
@@ -347,12 +347,12 @@ describe('runKubectlCommand - scale / expose / set image 的错误分支', () =>
   })
 
   it('scale --replicas 为负数或非整数报错', () => {
-    expect(
-      runKubectlCommand('kubectl scale deployment web --replicas=-1').isError
-    ).toBe(true)
-    expect(
-      runKubectlCommand('kubectl scale deployment web --replicas=abc').isError
-    ).toBe(true)
+    expect(runKubectlCommand('kubectl scale deployment web --replicas=-1').isError).toBe(
+      true
+    )
+    expect(runKubectlCommand('kubectl scale deployment web --replicas=abc').isError).toBe(
+      true
+    )
   })
 
   it('scale 不存在的 deployment 报错', () => {
@@ -388,7 +388,9 @@ describe('runKubectlCommand - scale / expose / set image 的错误分支', () =>
   })
 
   it('set image 目标 deployment 不存在时报错', () => {
-    const result = runKubectlCommand('kubectl set image deployment/no-such web=nginx:1.28')
+    const result = runKubectlCommand(
+      'kubectl set image deployment/no-such web=nginx:1.28'
+    )
     expect(result.isError).toBe(true)
   })
 })
@@ -446,7 +448,9 @@ spec:
     await vi.advanceTimersByTimeAsync(1000)
     const result = runKubectlCommand('kubectl describe daemonset fluent-bit')
     expect(result.isError).toBeFalsy()
-    expect(result.lines.some((line) => line.includes('Desired Number Scheduled'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('Desired Number Scheduled'))).toBe(
+      true
+    )
     expect(result.lines.some((line) => line.includes('Number Ready'))).toBe(true)
   })
 

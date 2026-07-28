@@ -153,7 +153,9 @@ export function buildDefaultResource(kind: ResourceKind): KubernetesResource {
           concurrencyPolicy: 'Forbid',
           jobTemplate: {
             spec: {
-              template: { spec: { containers: [{ name: 'worker', image: 'busybox:1.36' }] } },
+              template: {
+                spec: { containers: [{ name: 'worker', image: 'busybox:1.36' }] },
+              },
             },
           },
         },

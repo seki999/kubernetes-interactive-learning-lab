@@ -38,14 +38,12 @@ export function replicaSetRevision(replicaSet: ReplicaSet): number {
 }
 
 export function ownedReplicaSets(deployment: Deployment): ReplicaSet[] {
-  return listResources<ReplicaSet>(
-    'ReplicaSet',
-    deployment.metadata.namespace
-  ).filter((replicaSet) =>
-    replicaSet.metadata.ownerReferences?.some(
-      (reference) =>
-        reference.kind === 'Deployment' && reference.uid === deployment.metadata.uid
-    )
+  return listResources<ReplicaSet>('ReplicaSet', deployment.metadata.namespace).filter(
+    (replicaSet) =>
+      replicaSet.metadata.ownerReferences?.some(
+        (reference) =>
+          reference.kind === 'Deployment' && reference.uid === deployment.metadata.uid
+      )
   )
 }
 
@@ -55,9 +53,7 @@ export function latestReplicaSet(deployment: Deployment): ReplicaSet | undefined
   )[0]
 }
 
-export function deploymentRevisionHistory(
-  deployment: Deployment
-): DeploymentRevision[] {
+export function deploymentRevisionHistory(deployment: Deployment): DeploymentRevision[] {
   return ownedReplicaSets(deployment)
     .map((replicaSet) => ({
       revision: replicaSetRevision(replicaSet),
@@ -71,8 +67,7 @@ export function deploymentRevisionHistory(
         podTemplateHash(replicaSet.spec.template),
       replicas: replicaSet.spec.replicas,
       createdAt: replicaSet.metadata.creationTimestamp,
-      changeCause:
-        replicaSet.metadata.annotations?.[CHANGE_CAUSE_ANNOTATION] ?? '<none>',
+      changeCause: replicaSet.metadata.annotations?.[CHANGE_CAUSE_ANNOTATION] ?? '<none>',
     }))
     .sort((left, right) => left.revision - right.revision)
 }

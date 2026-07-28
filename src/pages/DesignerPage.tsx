@@ -126,8 +126,8 @@ export function DesignerPage() {
       const countByKind: Partial<Record<ResourceKind, number>> = {}
       return visibleResources.map((resource) => {
         const uid = resource.metadata.uid
-        const index = countByKind[resource.kind] ?? 0
-        countByKind[resource.kind] = index + 1
+        const index = countByKind[resource.kind as ResourceKind] ?? 0
+        countByKind[resource.kind as ResourceKind] = index + 1
         const existingVisual = currentById.get(uid)
         return {
           id: uid,

@@ -1,7 +1,4 @@
-import {
-  listResources,
-  patchResourceRaw,
-} from '@/kubernetes/api-server/objectStore'
+import { listResources, patchResourceRaw } from '@/kubernetes/api-server/objectStore'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
@@ -45,17 +42,22 @@ export function reconcileNode(node: Node): void {
 
   for (const pod of affectedPods) {
     const fromNodeName = node.metadata.name
-    patchResourceRaw<Pod>('Pod', pod.metadata.name, pod.metadata.namespace, (current) => ({
-      ...current,
-      status: {
-        ...current.status,
-        phase: 'Pending',
-        nodeName: undefined,
-        podIP: undefined,
-        reason: undefined,
-        message: undefined,
-      },
-    }))
+    patchResourceRaw<Pod>(
+      'Pod',
+      pod.metadata.name,
+      pod.metadata.namespace,
+      (current) => ({
+        ...current,
+        status: {
+          ...current.status,
+          phase: 'Pending',
+          nodeName: undefined,
+          podIP: undefined,
+          reason: undefined,
+          message: undefined,
+        },
+      })
+    )
     emitEvent({
       involvedObject: {
         kind: 'Pod',
@@ -68,7 +70,11 @@ export function reconcileNode(node: Node): void {
     })
     emitDomainEvent({
       type: 'POD_RESCHEDULED',
-      payload: { podName: pod.metadata.name, namespace: pod.metadata.namespace, fromNodeName },
+      payload: {
+        podName: pod.metadata.name,
+        namespace: pod.metadata.namespace,
+        fromNodeName,
+      },
     })
     trySchedulePod(pod.metadata.name, pod.metadata.namespace)
   }

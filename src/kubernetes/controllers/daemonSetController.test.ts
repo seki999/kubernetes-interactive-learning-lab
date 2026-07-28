@@ -10,11 +10,20 @@ import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { KUBELET_RUNNING_DELAY_MS } from '@/kubernetes/kubelet/kubelet'
 import type { DaemonSet, Node, Pod, Taint } from '@/types/k8s'
 
-function seedNode(name: string, options: { labels?: Record<string, string>; taints?: Taint[] } = {}): Node {
+function seedNode(
+  name: string,
+  options: { labels?: Record<string, string>; taints?: Taint[] } = {}
+): Node {
   return createResource<Node>({
     apiVersion: 'v1',
     kind: 'Node',
-    metadata: { uid: '', name, resourceVersion: '', creationTimestamp: '', labels: options.labels },
+    metadata: {
+      uid: '',
+      name,
+      resourceVersion: '',
+      creationTimestamp: '',
+      labels: options.labels,
+    },
     spec: { taints: options.taints },
     status: {
       capacity: { cpu: '4', memory: '8Gi' },
@@ -24,16 +33,27 @@ function seedNode(name: string, options: { labels?: Record<string, string>; tain
   })
 }
 
-function createDaemonSet(overrides: Partial<DaemonSet['spec']['template']['spec']> = {}): DaemonSet {
+function createDaemonSet(
+  overrides: Partial<DaemonSet['spec']['template']['spec']> = {}
+): DaemonSet {
   return createResource<DaemonSet>({
     apiVersion: 'apps/v1',
     kind: 'DaemonSet',
-    metadata: { uid: '', name: 'fluent-bit', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+    metadata: {
+      uid: '',
+      name: 'fluent-bit',
+      namespace: 'default',
+      resourceVersion: '',
+      creationTimestamp: '',
+    },
     spec: {
       selector: { matchLabels: { app: 'fluent-bit' } },
       template: {
         metadata: { labels: { app: 'fluent-bit' } },
-        spec: { containers: [{ name: 'fluent-bit', image: 'fluent/fluent-bit:2.2' }], ...overrides },
+        spec: {
+          containers: [{ name: 'fluent-bit', image: 'fluent/fluent-bit:2.2' }],
+          ...overrides,
+        },
       },
     },
     status: {
@@ -143,7 +163,9 @@ describe('DaemonSet Controller', () => {
 
   it('没有匹配 Toleration 的 Node 会被 NoSchedule Taint 排除', async () => {
     seedNode('node-1')
-    seedNode('node-2', { taints: [{ key: 'dedicated', value: 'gpu', effect: 'NoSchedule' }] })
+    seedNode('node-2', {
+      taints: [{ key: 'dedicated', value: 'gpu', effect: 'NoSchedule' }],
+    })
     createDaemonSet()
     await settle()
 
@@ -159,7 +181,9 @@ describe('DaemonSet Controller', () => {
           ...current.spec.template,
           spec: {
             ...current.spec.template.spec,
-            tolerations: [{ key: 'dedicated', operator: 'Equal', value: 'gpu', effect: 'NoSchedule' }],
+            tolerations: [
+              { key: 'dedicated', operator: 'Equal', value: 'gpu', effect: 'NoSchedule' },
+            ],
           },
         },
       },
@@ -175,7 +199,9 @@ describe('DaemonSet Controller', () => {
     seedNode('node-2')
     createDaemonSet()
     await settle()
-    const originalUids = listResources<Pod>('Pod', 'default').map((pod) => pod.metadata.uid).sort()
+    const originalUids = listResources<Pod>('Pod', 'default')
+      .map((pod) => pod.metadata.uid)
+      .sort()
 
     updateResource<DaemonSet>('DaemonSet', 'fluent-bit', 'default', (current) => ({
       ...current,
@@ -194,7 +220,9 @@ describe('DaemonSet Controller', () => {
 
     const pods = listResources<Pod>('Pod', 'default')
     expect(pods).toHaveLength(2)
-    expect(pods.every((pod) => pod.spec.containers[0].image === 'fluent/fluent-bit:2.3')).toBe(true)
+    expect(
+      pods.every((pod) => pod.spec.containers[0].image === 'fluent/fluent-bit:2.3')
+    ).toBe(true)
     expect(pods.every((pod) => pod.status.phase === 'Running')).toBe(true)
     const newUids = pods.map((pod) => pod.metadata.uid).sort()
     expect(newUids).not.toEqual(originalUids)

@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { traceSourceLabel, useTraceStore } from '@/stores/useTraceStore'
-import type {
-  KubernetesTrace,
-  KubernetesTraceStep,
-  TraceComponent,
-} from '@/types/trace'
+import type { KubernetesTrace, KubernetesTraceStep, TraceComponent } from '@/types/trace'
 
 const COMPONENTS: TraceComponent[] = [
   'kubectl',
@@ -46,7 +42,8 @@ function exportTrace(trace: KubernetesTrace): void {
 }
 
 function statusClass(status: KubernetesTrace['status'] | KubernetesTraceStep['status']) {
-  if (status === 'failed') return 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+  if (status === 'failed')
+    return 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
   if (status === 'running' || status === 'pending') {
     return 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
   }
@@ -135,7 +132,9 @@ export function TracePage() {
           <button
             type="button"
             disabled={!selected}
-            onClick={() => selected && useTraceStore.getState().replayFrom(selected.id, -1)}
+            onClick={() =>
+              selected && useTraceStore.getState().replayFrom(selected.id, -1)
+            }
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-slate-700"
           >
             重播
@@ -238,7 +237,9 @@ export function TracePage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{traceSourceLabel(trace.source)}</span>
-                    <span className={`rounded px-2 py-0.5 text-xs ${statusClass(trace.status)}`}>
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs ${statusClass(trace.status)}`}
+                    >
                       {trace.status}
                     </span>
                   </div>
@@ -246,7 +247,8 @@ export function TracePage() {
                     {trace.command ?? '系统操作'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {trace.steps.length} 步 · {duration(trace.startedAt, trace.finishedAt)}
+                    {trace.steps.length} 步 ·{' '}
+                    {duration(trace.startedAt, trace.finishedAt)}
                   </p>
                 </button>
               ))}
@@ -264,34 +266,56 @@ export function TracePage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-semibold">{selected.command ?? '系统操作'}</h2>
-                  <span className={`rounded px-2 py-0.5 text-xs ${statusClass(selected.status)}`}>
+                  <span
+                    className={`rounded px-2 py-0.5 text-xs ${statusClass(selected.status)}`}
+                  >
                     {selected.status}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  {new Date(selected.startedAt).toLocaleString()} · {selected.steps.length} 步
+                  {new Date(selected.startedAt).toLocaleString()} ·{' '}
+                  {selected.steps.length} 步
                 </p>
               </div>
 
               {selected.http && (
-                <section aria-label="模拟 HTTP 请求" className="rounded-md bg-slate-100 p-3 text-sm dark:bg-slate-900">
+                <section
+                  aria-label="模拟 HTTP 请求"
+                  className="rounded-md bg-slate-100 p-3 text-sm dark:bg-slate-900"
+                >
                   <h3 className="font-semibold">模拟 HTTP 请求</h3>
                   <p className="mt-2 font-mono text-xs">
                     {selected.http.method} {selected.http.url}
                   </p>
                   <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-2">
-                    <div><dt className="text-slate-500">Response Status</dt><dd>{selected.http.responseStatus ?? '—'}</dd></div>
-                    <div><dt className="text-slate-500">Resource Version</dt><dd>{selected.http.resourceVersion ?? '—'}</dd></div>
-                    <div><dt className="text-slate-500">Watch Event</dt><dd>{selected.http.watchEventType ?? '—'}</dd></div>
-                    <div><dt className="text-slate-500">Content-Type</dt><dd>{selected.http.headers?.['Content-Type'] ?? '—'}</dd></div>
+                    <div>
+                      <dt className="text-slate-500">Response Status</dt>
+                      <dd>{selected.http.responseStatus ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Resource Version</dt>
+                      <dd>{selected.http.resourceVersion ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Watch Event</dt>
+                      <dd>{selected.http.watchEventType ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Content-Type</dt>
+                      <dd>{selected.http.headers?.['Content-Type'] ?? '—'}</dd>
+                    </div>
                   </dl>
                   <details className="mt-2">
-                    <summary className="cursor-pointer text-xs font-medium">查看 Headers / Request / Response</summary>
-                    <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs">{json({
-                      headers: selected.http.headers,
-                      requestBody: selected.http.requestBody,
-                      responseBody: selected.http.responseBody,
-                    })}</pre>
+                    <summary className="cursor-pointer text-xs font-medium">
+                      查看 Headers / Request / Response
+                    </summary>
+                    <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs">
+                      {json({
+                        headers: selected.http.headers,
+                        requestBody: selected.http.requestBody,
+                        responseBody: selected.http.responseBody,
+                      })}
+                    </pre>
                   </details>
                 </section>
               )}
@@ -300,7 +324,8 @@ export function TracePage() {
                 {selected.steps.map((step, index) => {
                   const isPlaybackTrace = playbackTraceId === selected.id
                   const isActive = isPlaybackTrace && playbackStep === index
-                  const isWaiting = isPlaybackTrace && playbackStep >= -1 && index > playbackStep
+                  const isWaiting =
+                    isPlaybackTrace && playbackStep >= -1 && index > playbackStep
                   return (
                     <li key={step.id}>
                       <div
@@ -319,8 +344,14 @@ export function TracePage() {
                             <span className="font-medium">{step.description}</span>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
-                            <span className="rounded bg-slate-100 px-2 py-0.5 dark:bg-slate-900">{step.component}</span>
-                            <span className={`rounded px-2 py-0.5 ${statusClass(step.status)}`}>{step.status}</span>
+                            <span className="rounded bg-slate-100 px-2 py-0.5 dark:bg-slate-900">
+                              {step.component}
+                            </span>
+                            <span
+                              className={`rounded px-2 py-0.5 ${statusClass(step.status)}`}
+                            >
+                              {step.status}
+                            </span>
                           </div>
                         </div>
                         <p className="mt-2 text-xs text-slate-500">
@@ -338,17 +369,58 @@ export function TracePage() {
                             : '—'}
                         </p>
                         <details className="mt-2 text-xs">
-                          <summary className="cursor-pointer font-medium">展开步骤详情</summary>
+                          <summary className="cursor-pointer font-medium">
+                            展开步骤详情
+                          </summary>
                           <div className="mt-2 grid gap-2 xl:grid-cols-2">
-                            <div><p className="text-slate-500">输入</p><pre className="overflow-auto whitespace-pre-wrap">{json(step.input)}</pre></div>
-                            <div><p className="text-slate-500">输出</p><pre className="overflow-auto whitespace-pre-wrap">{json(step.output)}</pre></div>
-                            <div><p className="text-slate-500">相关资源</p><pre className="overflow-auto whitespace-pre-wrap">{json(step.relatedResources)}</pre></div>
-                            <div><p className="text-slate-500">相关事件 / 错误</p><pre className="overflow-auto whitespace-pre-wrap">{json({ events: step.relatedEvents, error: step.error })}</pre></div>
+                            <div>
+                              <p className="text-slate-500">输入</p>
+                              <pre className="overflow-auto whitespace-pre-wrap">
+                                {json(step.input)}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-slate-500">输出</p>
+                              <pre className="overflow-auto whitespace-pre-wrap">
+                                {json(step.output)}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-slate-500">相关资源</p>
+                              <pre className="overflow-auto whitespace-pre-wrap">
+                                {json(step.relatedResources)}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-slate-500">相关事件 / 错误</p>
+                              <pre className="overflow-auto whitespace-pre-wrap">
+                                {json({ events: step.relatedEvents, error: step.error })}
+                              </pre>
+                            </div>
                           </div>
                         </details>
+                        <div className="mt-2 flex gap-2">
+                          {step.relatedResources?.map((ref) => (
+                            <button
+                              key={ref.uid || `${ref.kind}-${ref.name}-${ref.namespace}`}
+                              type="button"
+                              className="rounded bg-sky-50 px-2 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
+                              onClick={() => {
+                                alert(`联动高亮：${ref.kind} ${ref.name}`)
+                                // To implement actual navigation:
+                                // window.location.hash = `#/cluster`;
+                                // Then pass selection context.
+                              }}
+                            >
+                              查看 {ref.kind}
+                            </button>
+                          ))}
+                        </div>
                         <button
                           type="button"
-                          onClick={() => useTraceStore.getState().replayFrom(selected.id, index - 1)}
+                          onClick={() =>
+                            useTraceStore.getState().replayFrom(selected.id, index - 1)
+                          }
                           className="mt-2 text-xs text-sky-600 hover:underline dark:text-sky-400"
                         >
                           从此步骤重播

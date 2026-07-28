@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { dump } from 'js-yaml'
+import { listResources } from '@/kubernetes/api-server/objectStore'
 import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { deleteResource } from '@/kubernetes/api-server/apiServer'
 import { formatAge } from '@/terminal/formatter/table'
@@ -8,7 +9,7 @@ import type { Pod } from '@/types/k8s'
 import { SchedulerExplanation } from './SchedulerExplanation'
 import { BatchResourceActions } from './BatchResourceActions'
 import { MetricsSimulatorControls } from './MetricsSimulatorControls'
-import type { CronJob, Deployment } from '@/types/k8s'
+import type { CronJob, Deployment, ReplicaSet } from '@/types/k8s'
 
 interface ResourceDetailPanelProps {
   resource: KubernetesResource
@@ -77,54 +78,128 @@ export function ResourceDetailPanel({ resource, onDeleted }: ResourceDetailPanel
       </div>
 
       <div className="mt-2 flex gap-1 border-b border-slate-200 text-sm dark:border-slate-800">
-        {TABS.filter((tab) => tab.key !== 'scheduler' || resource.kind === 'Pod').map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-2 py-1.5 ${
-              activeTab === tab.key
-                ? 'border-b-2 border-slate-900 font-medium dark:border-slate-100'
-                : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {TABS.filter((tab) => tab.key !== 'scheduler' || resource.kind === 'Pod').map(
+          (tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-2 py-1.5 ${
+                activeTab === tab.key
+                  ? 'border-b-2 border-slate-900 font-medium dark:border-slate-100'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              {tab.label}
+            </button>
+          )
+        )}
       </div>
 
       <div className="mt-2 min-h-0 flex-1 overflow-auto text-sm">
         {activeTab === 'info' && (
           <>
-          <dl className="space-y-1">
-            <Row label="名称" value={resource.metadata.name} />
-            <Row
-              label="命名空间"
-              value={resource.metadata.namespace ?? '（集群级资源）'}
-            />
-            <Row label="UID" value={resource.metadata.uid} />
-            <Row
-              label="创建时间"
-              value={`${resource.metadata.creationTimestamp}（${formatAge(resource.metadata.creationTimestamp)} 前）`}
-            />
-            <Row
-              label="Labels"
-              value={
-                resource.metadata.labels &&
-                Object.keys(resource.metadata.labels).length > 0
-                  ? Object.entries(resource.metadata.labels)
-                      .map(([k, v]) => `${k}=${v}`)
-                      .join(', ')
-                  : '<none>'
-              }
-            />
-          </dl>
-          {resource.kind === 'CronJob' && (
-            <BatchResourceActions cronJob={resource as CronJob} />
-          )}
-          {resource.kind === 'Deployment' && (
-            <MetricsSimulatorControls deployment={resource as Deployment} />
-          )}
+            <dl className="space-y-1">
+              <Row label="名称" value={resource.metadata.name} />
+              <Row
+                label="命名空间"
+                value={resource.metadata.namespace ?? '（集群级资源）'}
+              />
+              <Row label="UID" value={resource.metadata.uid} />
+              <Row
+                label="创建时间"
+                value={`${resource.metadata.creationTimestamp}（${formatAge(resource.metadata.creationTimestamp)} 前）`}
+              />
+              <Row
+                label="Labels"
+                value={
+                  resource.metadata.labels &&
+                  Object.keys(resource.metadata.labels).length > 0
+                    ? Object.entries(resource.metadata.labels)
+                        .map(([k, v]) => `${k}=${v}`)
+                        .join(', ')
+                    : '<none>'
+                }
+              />
+            </dl>
+            {resource.kind === 'CronJob' && (
+              <BatchResourceActions cronJob={resource as CronJob} />
+            )}
+            {resource.kind === 'Deployment' && (
+              <>
+                <MetricsSimulatorControls deployment={resource as Deployment} />
+                <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
+                  <h4 className="mb-2 font-semibold text-slate-700 dark:text-slate-300">
+                    版本历史 (ReplicaSets)
+                  </h4>
+                  {(() => {
+                    const replicaSets = listResources<ReplicaSet>(
+                      'ReplicaSet',
+                      resource.metadata.namespace
+                    ).filter((rs) =>
+                      rs.metadata.ownerReferences?.some(
+                        (ref) => ref.uid === resource.metadata.uid
+                      )
+                    )
+
+                    if (replicaSets.length === 0) {
+                      return <p className="text-xs text-slate-500">暂无 ReplicaSet</p>
+                    }
+
+                    return (
+                      <ul className="space-y-2 text-xs">
+                        {replicaSets
+                          .sort(
+                            (a, b) =>
+                              Number(
+                                b.metadata.annotations?.[
+                                  'deployment.kubernetes.io/revision'
+                                ] || 0
+                              ) -
+                              Number(
+                                a.metadata.annotations?.[
+                                  'deployment.kubernetes.io/revision'
+                                ] || 0
+                              )
+                          )
+                          .map((rs) => {
+                            const rev =
+                              rs.metadata.annotations?.[
+                                'deployment.kubernetes.io/revision'
+                              ] || '?'
+                            const image =
+                              rs.spec.template.spec.containers[0]?.image || 'unknown'
+                            return (
+                              <li
+                                key={rs.metadata.uid}
+                                className="flex justify-between rounded bg-slate-50 p-2 dark:bg-slate-900"
+                              >
+                                <div>
+                                  <span className="font-semibold text-sky-600 dark:text-sky-400">
+                                    Revision {rev}
+                                  </span>
+                                  <span className="ml-2 text-slate-500">
+                                    {rs.metadata.name}
+                                  </span>
+                                  <p className="mt-1 text-slate-600 dark:text-slate-400">
+                                    Image: {image}
+                                  </p>
+                                </div>
+                                <div className="text-right text-slate-500">
+                                  {rs.status.availableReplicas} / {rs.spec.replicas} 可用
+                                  <p className="mt-1">
+                                    {formatAge(rs.metadata.creationTimestamp)} 前
+                                  </p>
+                                </div>
+                              </li>
+                            )
+                          })}
+                      </ul>
+                    )
+                  })()}
+                </div>
+              </>
+            )}
           </>
         )}
 

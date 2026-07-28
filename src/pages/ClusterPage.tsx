@@ -22,7 +22,7 @@ function getStatusSummary(resource: KubernetesResource): string {
       return `${resource.addresses.length} 个可用地址`
     case 'Node': {
       const ready = resource.status.conditions.some(
-        (c) => c.type === 'Ready' && c.status === 'True'
+        (c: any) => c.type === 'Ready' && c.status === 'True'
       )
       if (!ready) return 'NotReady'
       return resource.spec.unschedulable ? 'Ready,SchedulingDisabled' : 'Ready'

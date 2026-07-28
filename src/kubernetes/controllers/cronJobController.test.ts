@@ -12,7 +12,13 @@ function cronJob(
   return createResource<CronJob>({
     apiVersion: 'batch/v1',
     kind: 'CronJob',
-    metadata: { uid: '', name, namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+    metadata: {
+      uid: '',
+      name,
+      namespace: 'default',
+      resourceVersion: '',
+      creationTimestamp: '',
+    },
     spec: {
       schedule: '*/5 * * * *',
       concurrencyPolicy: policy,
@@ -45,7 +51,11 @@ describe('CronJob Controller', () => {
 
     cronJob('Allow', 'paused', true)
     advanceCronJobTime('paused', 'default', 10)
-    expect(listResources<Job>('Job', 'default').filter((job) => job.metadata.ownerReferences?.[0].name === 'paused')).toHaveLength(0)
+    expect(
+      listResources<Job>('Job', 'default').filter(
+        (job) => job.metadata.ownerReferences?.[0].name === 'paused'
+      )
+    ).toHaveLength(0)
   })
 
   it('执行 Forbid 和 Replace 并发策略', () => {

@@ -1,7 +1,4 @@
-import {
-  getResource,
-  updateResource,
-} from '@/kubernetes/api-server/apiServer'
+import { getResource, updateResource } from '@/kubernetes/api-server/apiServer'
 import {
   CHANGE_CAUSE_ANNOTATION,
   deploymentRevisionHistory,
@@ -89,7 +86,8 @@ function rolloutDaemonSet(
   }
   const { desiredNumberScheduled, currentNumberScheduled, numberReady } = daemonSet.status
   const rolledOut =
-    currentNumberScheduled === desiredNumberScheduled && numberReady === desiredNumberScheduled
+    currentNumberScheduled === desiredNumberScheduled &&
+    numberReady === desiredNumberScheduled
   return ok([
     rolledOut
       ? `daemon set "${name}" successfully rolled out`

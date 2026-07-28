@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createResource, getResource, listResources } from '@/kubernetes/api-server/apiServer'
+import {
+  createResource,
+  getResource,
+  listResources,
+} from '@/kubernetes/api-server/apiServer'
 import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { KUBELET_RUNNING_DELAY_MS } from '@/kubernetes/kubelet/kubelet'
 import { JOB_COMPLETION_DELAY_MS } from './jobController'
@@ -54,8 +58,12 @@ describe('Job Controller', () => {
     createJob()
     expect(listResources<Pod>('Pod', 'default')).toHaveLength(1)
 
-    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + JOB_COMPLETION_DELAY_MS + 50)
-    await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + JOB_COMPLETION_DELAY_MS + 50)
+    await vi.advanceTimersByTimeAsync(
+      KUBELET_RUNNING_DELAY_MS + JOB_COMPLETION_DELAY_MS + 50
+    )
+    await vi.advanceTimersByTimeAsync(
+      KUBELET_RUNNING_DELAY_MS + JOB_COMPLETION_DELAY_MS + 50
+    )
 
     const job = getResource<Job>('Job', 'batch', 'default')
     expect(job?.status.succeeded).toBe(2)

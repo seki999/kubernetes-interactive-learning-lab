@@ -137,7 +137,14 @@ function buildResourceRows(
 
     case 'CronJob': {
       const cronJobs = items as CronJob[]
-      const headers = withNamespace(['NAME', 'SCHEDULE', 'SUSPEND', 'ACTIVE', 'LAST SCHEDULE', 'AGE'])
+      const headers = withNamespace([
+        'NAME',
+        'SCHEDULE',
+        'SUSPEND',
+        'ACTIVE',
+        'LAST SCHEDULE',
+        'AGE',
+      ])
       const rows = cronJobs.map((cronJob) =>
         withNamespaceRow(cronJob.metadata.namespace, [
           cronJob.metadata.name,
@@ -190,7 +197,9 @@ function buildResourceRows(
         'AGE',
       ])
       const rows = hpas.map((hpa) => {
-        const cpuMetric = hpa.spec.metrics.find((metric) => metric.resource.name === 'cpu')
+        const cpuMetric = hpa.spec.metrics.find(
+          (metric) => metric.resource.name === 'cpu'
+        )
         const targets =
           hpa.status.currentCPUUtilizationPercentage !== undefined && cpuMetric
             ? `${hpa.status.currentCPUUtilizationPercentage}%/${cpuMetric.resource.target.averageUtilization}%`

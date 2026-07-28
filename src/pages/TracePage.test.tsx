@@ -33,9 +33,7 @@ describe('TracePage', () => {
           startedAt: 2,
           finishedAt: 3,
           simulated: true,
-          relatedResources: [
-            { kind: 'Deployment', name: 'nginx', namespace: 'default' },
-          ],
+          relatedResources: [{ kind: 'Deployment', name: 'nginx', namespace: 'default' }],
         },
       ],
     })
