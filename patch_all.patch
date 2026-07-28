@@ -1,0 +1,178 @@
+diff --git a/docs/improvement-implementation-report.md b/docs/improvement-implementation-report.md
+index bf51573..066dd02 100644
+--- a/docs/improvement-implementation-report.md
++++ b/docs/improvement-implementation-report.md
+@@ -4,7 +4,7 @@
+
+ - **HPA 与负载模拟**: 已验证完成。
+ - **Job / CronJob / DaemonSet**: 已验证完成，修正了课程文本过时说明。
+-- **Deployment 滚动更新**: 完成。加入了 UI 的 ReplicaSet 历史展示。
++- **Deployment 滚动更新**: 完成。加入了 UI 的 ReplicaSet 历史展示，以及 `pause`、`resume`、`progressDeadlineSeconds` 的支持。
+ - **请求追踪器 (Trace Viewer)**: 完成。对 UI 进行了升级支持追踪步骤的资源定位操作联动。
+ - **Scheduler 解释器**: 完成。增加了原始分与标准分详细拆解，改进了 UI 显示。
+ - **StatefulSet**: 新增。实现了简单的控制器来完成 Pod 的有序分配。
+diff --git a/src/kubernetes/controllers/deploymentController.ts b/src/kubernetes/controllers/deploymentController.ts
+index 14a86f6..bc42c01 100644
+--- a/src/kubernetes/controllers/deploymentController.ts
++++ b/src/kubernetes/controllers/deploymentController.ts
+@@ -154,6 +154,18 @@ export function reconcileDeployment(deployment: Deployment): void {
+     input: { replicas: deployment.spec.replicas },
+   })
+   const namespace = deployment.metadata.namespace
++
++  if (deployment.spec.paused) {
++    recordTraceStep({
++      resource: deployment,
++      component: 'deployment-controller',
++      action: 'PAUSE_DEPLOYMENT',
++      description: 'Deployment 处于暂停状态，停止滚动更新调谐（部分模拟）',
++      input: { paused: deployment.spec.paused },
++    })
++    syncDeploymentStatus(deployment.metadata.name, namespace)
++    return
++  }
+   let replicaSets = normalizeReplicaSetRevisions(ownedReplicaSets(deployment))
+   const desiredHash = podTemplateHash(deployment.spec.template)
+   const matchingReplicaSet = replicaSets.find(
+diff --git a/src/kubernetes/controllers/statusSync.ts b/src/kubernetes/controllers/statusSync.ts
+index 3cf597c..cf3e018 100644
+--- a/src/kubernetes/controllers/statusSync.ts
++++ b/src/kubernetes/controllers/statusSync.ts
+@@ -6,7 +6,7 @@ import {
+ import { ownedReplicaSets, replicaSetRevision } from '@/kubernetes/deployment/rollout'
+ import { emitEvent } from '@/kubernetes/events/emitEvent'
+ import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
+-import type { Deployment, Pod, ReplicaSet, StatefulSet } from '@/types/k8s'
++import type { Deployment, Pod, ReplicaSet, StatefulSet, DeploymentConditionType } from '@/types/k8s'
+
+ function isPodReady(pod: Pod): boolean {
+   return (
+@@ -62,7 +62,7 @@ export function syncDeploymentStatus(name: string, namespace: string | undefined
+   const updatedPods = latest ? podsOwnedBy([latest], namespace) : []
+   const readyReplicas = allPods.filter(isPodReady).length
+   const updatedReadyReplicas = updatedPods.filter(isPodReady).length
+-  const failed = updatedPods.some((pod) => pod.status.phase === 'ImagePullBackOff')
++  let failed = updatedPods.some((pod) => pod.status.phase === 'ImagePullBackOff')
+   const oldReplicas = replicaSets
+     .filter((replicaSet) => replicaSet.metadata.uid !== latest?.metadata.uid)
+     .reduce((total, replicaSet) => total + replicaSet.spec.replicas, 0)
+@@ -71,7 +71,19 @@ export function syncDeploymentStatus(name: string, namespace: string | undefined
+     latest.spec.replicas === deployment.spec.replicas &&
+     updatedReadyReplicas >= deployment.spec.replicas &&
+     oldReplicas === 0
+-  const condition = failed ? 'Failed' : complete ? 'Available' : 'Progressing'
++
++  let condition: DeploymentConditionType = failed ? 'Failed' : complete ? 'Available' : 'Progressing'
++
++  // Implement progressDeadlineSeconds (部分模拟)
++  if (condition === 'Progressing' && latest && !deployment.spec.paused) {
++    const progressDeadlineSeconds = deployment.spec.progressDeadlineSeconds ?? 600
++    const createdAt = new Date(latest.metadata.creationTimestamp).getTime()
++    const now = Date.now()
++    if (now - createdAt > progressDeadlineSeconds * 1000) {
++      failed = true
++      condition = 'Failed'
++    }
++  }
+   const revision = latest ? replicaSetRevision(latest) : 0
+   const previousCondition = deployment.status.condition
+
+@@ -91,7 +103,7 @@ export function syncDeploymentStatus(name: string, namespace: string | undefined
+           ? 'NewReplicaSetAvailable'
+           : 'ReplicaSetUpdated',
+       message: failed
+-        ? `Revision ${revision} 的新 Pod 镜像拉取失败`
++        ? `Revision ${revision} 滚动更新失败（可能是镜像拉取失败或超过 progressDeadlineSeconds）`
+         : complete
+           ? `Revision ${revision} 已成功发布`
+           : `正在发布 Revision ${revision}：${updatedReadyReplicas}/${deployment.spec.replicas} 个新 Pod 已就绪`,
+diff --git a/src/terminal/commands/rollout.ts b/src/terminal/commands/rollout.ts
+index 0981311..1b383d5 100644
+--- a/src/terminal/commands/rollout.ts
++++ b/src/terminal/commands/rollout.ts
+@@ -35,7 +35,7 @@ export function runRollout(argv: string[]): CommandOutput {
+   const target = parseTarget(positional)
+   if (!action || !target) {
+     return fail([
+-      'error: 用法：kubectl rollout <status|history|undo|restart> deployment/<名称>，DaemonSet 目前只支持 kubectl rollout status daemonset/<名称>',
++      'error: 用法：kubectl rollout <status|history|undo|restart|pause|resume> deployment/<名称>，DaemonSet 目前只支持 kubectl rollout status daemonset/<名称>',
+     ])
+   }
+
+@@ -59,6 +59,10 @@ export function runRollout(argv: string[]): CommandOutput {
+       return rolloutUndo(deployment, toStringFlag(flags['to-revision']))
+     case 'restart':
+       return rolloutRestart(deployment)
++    case 'pause':
++      return rolloutPause(deployment)
++    case 'resume':
++      return rolloutResume(deployment)
+     default:
+       return fail([`error: 不支持 kubectl rollout ${action}`])
+   }
+@@ -191,6 +195,52 @@ function rolloutUndo(
+   }
+ }
+
++function rolloutPause(deployment: Deployment): CommandOutput {
++  try {
++    if (deployment.spec.paused) {
++      return ok([`deployment.apps/${deployment.metadata.name} is already paused`])
++    }
++    updateResource<Deployment>(
++      'Deployment',
++      deployment.metadata.name,
++      deployment.metadata.namespace,
++      (current) => ({
++        ...current,
++        spec: {
++          ...current.spec,
++          paused: true,
++        },
++      })
++    )
++    return ok([`deployment.apps/${deployment.metadata.name} paused`])
++  } catch (error) {
++    return fail([formatApiServerError(error)])
++  }
++}
++
++function rolloutResume(deployment: Deployment): CommandOutput {
++  try {
++    if (!deployment.spec.paused) {
++      return ok([`deployment.apps/${deployment.metadata.name} is already resumed`])
++    }
++    updateResource<Deployment>(
++      'Deployment',
++      deployment.metadata.name,
++      deployment.metadata.namespace,
++      (current) => ({
++        ...current,
++        spec: {
++          ...current.spec,
++          paused: false,
++        },
++      })
++    )
++    return ok([`deployment.apps/${deployment.metadata.name} resumed`])
++  } catch (error) {
++    return fail([formatApiServerError(error)])
++  }
++}
++
+ function rolloutRestart(deployment: Deployment): CommandOutput {
+   try {
+     const restartedAt = new Date().toISOString()
+diff --git a/src/types/k8s/deployment.ts b/src/types/k8s/deployment.ts
+index 7fbb3d0..b501c17 100644
+--- a/src/types/k8s/deployment.ts
++++ b/src/types/k8s/deployment.ts
+@@ -5,6 +5,8 @@ export interface DeploymentSpec {
+   replicas: number
+   selector: LabelSelector
+   template: PodTemplateSpec
++  paused?: boolean
++  progressDeadlineSeconds?: number
+   strategy?: {
+     type: 'RollingUpdate' | 'Recreate'
+     rollingUpdate?: {

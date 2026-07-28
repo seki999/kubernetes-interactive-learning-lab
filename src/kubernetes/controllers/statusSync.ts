@@ -6,7 +6,13 @@ import {
 import { ownedReplicaSets, replicaSetRevision } from '@/kubernetes/deployment/rollout'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
-import type { Deployment, Pod, ReplicaSet, StatefulSet, DeploymentConditionType } from '@/types/k8s'
+import type {
+  Deployment,
+  Pod,
+  ReplicaSet,
+  StatefulSet,
+  DeploymentConditionType,
+} from '@/types/k8s'
 
 function isPodReady(pod: Pod): boolean {
   return (
@@ -72,7 +78,11 @@ export function syncDeploymentStatus(name: string, namespace: string | undefined
     updatedReadyReplicas >= deployment.spec.replicas &&
     oldReplicas === 0
 
-  let condition: DeploymentConditionType = failed ? 'Failed' : complete ? 'Available' : 'Progressing'
+  let condition: DeploymentConditionType = failed
+    ? 'Failed'
+    : complete
+      ? 'Available'
+      : 'Progressing'
 
   // Implement progressDeadlineSeconds (部分模拟)
   if (condition === 'Progressing' && latest && !deployment.spec.paused) {
