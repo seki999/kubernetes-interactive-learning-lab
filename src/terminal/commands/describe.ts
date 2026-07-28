@@ -184,70 +184,32 @@ function describeDaemonSet(daemonSet: DaemonSet): string[] {
 }
 
 function describeHpa(hpa: HorizontalPodAutoscaler): string[] {
+  const cpuMetric = hpa.spec.metrics.find((metric) => metric.resource.name === 'cpu')
+  const memoryMetric = hpa.spec.metrics.find(
+    (metric) => metric.resource.name === 'memory'
+  )
   const lines = [
     `Name:               ${hpa.metadata.name}`,
     `Namespace:          ${hpa.metadata.namespace ?? '-'}`,
-    `Reference:          ${hpa.spec.scaleTargetRef.kind}/${hpa.spec.scaleTargetRef.name}`,
-    `Min Replicas:       ${hpa.spec.minReplicas ?? 1}`,
+    `Reference:          Deployment/${hpa.spec.scaleTargetRef.name}`,
+    `Min Replicas:       ${hpa.spec.minReplicas}`,
     `Max Replicas:       ${hpa.spec.maxReplicas}`,
     `Current Replicas:   ${hpa.status.currentReplicas}`,
     `Desired Replicas:   ${hpa.status.desiredReplicas}`,
   ]
-
-  const metrics = hpa.spec.metrics || []
-  if (metrics.length > 0) {
-    lines.push('Metrics:')
-    metrics.forEach((m) => {
-      if (m.type === 'Resource') {
-        lines.push(`  ( current / target )`)
-        lines.push(
-          `  Resource ${m.resource.name}: ${m.resource.name === 'cpu' ? (hpa.status.currentCPUUtilizationPercentage ?? '<unknown>') : (hpa.status.currentMemoryUtilizationPercentage ?? '<unknown>')}% / ${m.resource.target.averageUtilization}%`
-        )
-      } else if (m.type === 'Pods') {
-        lines.push(
-          `  Pods metric ${m.pods.metric.name}: ${m.pods.target.averageValue} (target)`
-        )
-      } else if (m.type === 'Object') {
-        lines.push(
-          `  Object metric ${m.object.metric.name}: ${m.object.target.value} (target)`
-        )
-      } else if (m.type === 'External') {
-        lines.push(
-          `  External metric ${m.external.metric.name}: ${m.external.target.value} (target)`
-        )
-      }
-    })
+  if (cpuMetric) {
+    lines.push(
+      `CPU Utilization:    ${hpa.status.currentCPUUtilizationPercentage ?? '<unknown>'}% / ${cpuMetric.resource.target.averageUtilization}% (target)`
+    )
   }
-
-  if (hpa.spec.behavior) {
-    lines.push('Behavior:')
-    if (hpa.spec.behavior.scaleUp) {
-      lines.push(`  Scale Up:`)
-      lines.push(
-        `    Stabilization Window: ${hpa.spec.behavior.scaleUp.stabilizationWindowSeconds ?? 0} seconds`
-      )
-      lines.push(`    Select Policy: ${hpa.spec.behavior.scaleUp.selectPolicy ?? 'Max'}`)
-    }
-    if (hpa.spec.behavior.scaleDown) {
-      lines.push(`  Scale Down:`)
-      lines.push(
-        `    Stabilization Window: ${hpa.spec.behavior.scaleDown.stabilizationWindowSeconds ?? 300} seconds`
-      )
-      lines.push(
-        `    Select Policy: ${hpa.spec.behavior.scaleDown.selectPolicy ?? 'Max'}`
-      )
-    }
+  if (memoryMetric) {
+    lines.push(
+      `Memory Utilization: ${hpa.status.currentMemoryUtilizationPercentage ?? '<unknown>'}% / ${memoryMetric.resource.target.averageUtilization}% (target)`
+    )
   }
-
   if (hpa.status.message) {
     lines.push(`Message:            ${hpa.status.message}`)
   }
-
-  if (hpa.status.calculationDetails && hpa.status.calculationDetails.length > 0) {
-    lines.push('Calculation Details:')
-    hpa.status.calculationDetails.forEach((detail) => lines.push(`  - ${detail}`))
-  }
-
   lines.push(
     '',
     ...describeEvents(

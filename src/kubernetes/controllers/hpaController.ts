@@ -7,6 +7,7 @@ import {
 import { patchResourceRaw } from '@/kubernetes/api-server/objectStore'
 import { ownedReplicaSets } from '@/kubernetes/deployment/rollout'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
+import { recordTraceStep } from '@/simulation/trace/traceManager'
 import {
   metricsProfileKey,
   useMetricsSimulatorStore,
@@ -15,153 +16,34 @@ import {
 import type {
   Deployment,
   HorizontalPodAutoscaler,
-  HpaMetricSpec,
+  HpaResourceMetric,
   Pod,
-  StatefulSet,
 } from '@/types/k8s'
 
+/**
+ * HPA 控制器（对应需求文档"优先级 6：实现 HPA 和可控负载模拟"）。
+ *
+ * 简化说明：
+ * - 真实 HPA Controller 每隔固定周期（默认 15 秒）主动轮询一次指标；这里没有
+ *   后台定时器，而是"指标变化时才重新计算"——用户在界面上调整负载画像
+ *   （或 HPA 资源自己被创建/更新）时调用 reconcileHpa，这和项目里 CronJob
+ *   "手动推进模拟时间"是同一种思路：避免依赖后台计时导致刷新或休眠后
+ *   行为不可复现。
+ * - 冷却时间和缩容稳定窗口用真实的 Date.now() 比较 hpa.status 里记录的时间戳，
+ *   不需要额外的定时器；数值经过压缩（几秒到几十秒），比真实 Kubernetes 默认的
+ *   几分钟短很多，方便在教学场景里能实际观察到"冷却中"这个状态。
+ * - 只支持 Deployment 作为 scaleTargetRef，只支持 Resource（cpu/memory）指标。
+ * - 多个指标时取"建议副本数最大"的那个，和真实 HPA 的"取所有指标建议的最大值"
+ *   逻辑一致。
+ */
 export const HPA_SCALE_COOLDOWN_MS = 10_000
 export const HPA_SCALE_DOWN_STABILIZATION_MS = 20_000
-export const HPA_SYNC_PERIOD_MS = 15_000 // 模拟真实 HPA 15秒轮询周期
 
-let hpaSyncInterval: number | undefined
-let hpaSyncSubscribers = 0
-
-export function startHpaController() {
-  hpaSyncSubscribers++
-  if (hpaSyncInterval) return
-  hpaSyncInterval = window.setInterval(() => {
-    reconcileAllHpas()
-  }, HPA_SYNC_PERIOD_MS)
+function utilizationFor(metric: HpaResourceMetric, profile: LoadProfile): number {
+  return metric.resource.name === 'cpu' ? profile.cpuPercent : profile.memoryPercent
 }
 
-export function stopHpaController() {
-  hpaSyncSubscribers--
-  if (hpaSyncSubscribers <= 0) {
-    hpaSyncSubscribers = 0
-    if (hpaSyncInterval) {
-      window.clearInterval(hpaSyncInterval)
-      hpaSyncInterval = undefined
-    }
-  }
-}
-
-/**
- * 每次轮询时更新自动流量模型指标并触发所有 HPA 重新计算
- */
-export function reconcileAllHpas() {
-  const store = useMetricsSimulatorStore.getState()
-  const profiles = store.profiles
-
-  for (const [key, profile] of Object.entries(profiles)) {
-    if (profile.trafficModel === 'steady') continue
-
-    if (profile.trafficModel === 'increasing') {
-      store.adjustCpuPercent(key, 10)
-      store.setRequestsPerSecond(key, profile.requestsPerSecond + 10)
-    } else if (profile.trafficModel === 'decreasing') {
-      store.adjustCpuPercent(key, -10)
-      store.setRequestsPerSecond(key, Math.max(0, profile.requestsPerSecond - 10))
-    } else if (profile.trafficModel === 'burst') {
-      // 突发后恢复
-      store.setCpuPercent(key, 50)
-      store.setRequestsPerSecond(key, 10)
-      store.setTrafficModel(key, 'steady') // 恢复稳态
-    } else if (profile.trafficModel === 'periodic') {
-      if (profile.periodicHigh) {
-        store.setCpuPercent(key, 30)
-        store.setPeriodicHigh(key, false)
-      } else {
-        store.setCpuPercent(key, 150)
-        store.setPeriodicHigh(key, true)
-      }
-    }
-  }
-
-  const hpas = listResources<HorizontalPodAutoscaler>('HorizontalPodAutoscaler')
-  hpas.forEach((h) => reconcileHpa(h))
-}
-
-function calculateMetricRecommendation(
-  metric: HpaMetricSpec,
-  profile: LoadProfile,
-  currentReplicas: number
-): { utilization: number; desired: number; name: string; formula: string } | null {
-  if (metric.type === 'Resource') {
-    const util =
-      metric.resource.name === 'cpu' ? profile.cpuPercent : profile.memoryPercent
-    const target = metric.resource.target.averageUtilization || 50
-    const ratio = util / Math.max(1, target)
-
-    // 容忍区间 10%: 如果比值在 0.9 到 1.1 之间，不建议改变
-    if (Math.abs(1.0 - ratio) <= 0.1) {
-      return {
-        utilization: util,
-        desired: currentReplicas,
-        name: metric.resource.name,
-        formula: `${metric.resource.name}: ${util}% / ${target}% = ${ratio.toFixed(2)} (在 10% 容忍区间内，保持 ${currentReplicas} 副本)`,
-      }
-    }
-    const desired = Math.ceil(currentReplicas * ratio)
-    return {
-      utilization: util,
-      desired,
-      name: metric.resource.name,
-      formula: `${metric.resource.name}: ceil(${currentReplicas} * (${util}% / ${target}%)) = ${desired}`,
-    }
-  } else if (metric.type === 'Pods') {
-    // RPS
-    const util = profile.requestsPerSecond
-    const target = Number(metric.pods.target.averageValue) || 10
-    const ratio = util / Math.max(1, target)
-
-    if (Math.abs(1.0 - ratio) <= 0.1) {
-      return {
-        utilization: util,
-        desired: currentReplicas,
-        name: metric.pods.metric.name,
-        formula: `${metric.pods.metric.name}: ${util} / ${target} = ${ratio.toFixed(2)} (在 10% 容忍区间内)`,
-      }
-    }
-    const desired = Math.ceil(currentReplicas * ratio)
-    return {
-      utilization: util,
-      desired,
-      name: metric.pods.metric.name,
-      formula: `${metric.pods.metric.name}: ceil(${currentReplicas} * (${util} / ${target})) = ${desired}`,
-    }
-  } else if (metric.type === 'Object' || metric.type === 'External') {
-    // 模拟自定义指标
-    const util = profile.requestsPerSecond * 2 // 随意映射一下展示
-    const target =
-      metric.type === 'Object'
-        ? Number(metric.object.target.value) || 100
-        : Number(metric.external.target.value) || 100
-    const ratio = util / Math.max(1, target)
-
-    if (Math.abs(1.0 - ratio) <= 0.1) {
-      return {
-        utilization: util,
-        desired: currentReplicas,
-        name: metric.type,
-        formula: `${metric.type}: ${util} / ${target} = ${ratio.toFixed(2)} (在 10% 容忍区间内)`,
-      }
-    }
-    const desired = Math.ceil(currentReplicas * ratio)
-    return {
-      utilization: util,
-      desired,
-      name: metric.type,
-      formula: `${metric.type}: ceil(${currentReplicas} * (${util} / ${target})) = ${desired}`,
-    }
-  }
-  return null
-}
-
-export function reconcileHpa(
-  hpaInput: HorizontalPodAutoscaler,
-  explicitNow?: number
-): void {
+export function reconcileHpa(hpaInput: HorizontalPodAutoscaler): void {
   const hpa =
     getResource<HorizontalPodAutoscaler>(
       'HorizontalPodAutoscaler',
@@ -170,25 +52,13 @@ export function reconcileHpa(
     ) ?? hpaInput
   const namespace = hpa.metadata.namespace
 
-  const targetKind = hpa.spec.scaleTargetRef.kind
-  if (targetKind === 'DaemonSet') {
-    const message = `无法扩缩容 DaemonSet/${hpa.spec.scaleTargetRef.name}，因为每个节点只运行一个 Pod`
-    patchResourceRaw<HorizontalPodAutoscaler>(
-      'HorizontalPodAutoscaler',
-      hpa.metadata.name,
-      namespace,
-      (current) => ({ ...current, status: { ...current.status, message } })
-    )
-    return
-  }
-
-  const targetRes = getResource<Deployment | StatefulSet>(
-    targetKind as 'Deployment' | 'StatefulSet',
+  const deployment = getResource<Deployment>(
+    'Deployment',
     hpa.spec.scaleTargetRef.name,
     namespace
   )
-  if (!targetRes) {
-    const message = `扩缩容目标 ${targetKind}/${hpa.spec.scaleTargetRef.name} 不存在`
+  if (!deployment) {
+    const message = `扩缩容目标 Deployment/${hpa.spec.scaleTargetRef.name} 不存在`
     patchResourceRaw<HorizontalPodAutoscaler>(
       'HorizontalPodAutoscaler',
       hpa.metadata.name,
@@ -205,109 +75,51 @@ export function reconcileHpa(
       reason: 'FailedGetScale',
       message,
     })
+    recordTraceStep({
+      resource: hpa,
+      component: 'hpa-controller',
+      action: 'RECONCILE_HPA',
+      description: 'HPA Controller 找不到扩缩容目标',
+      status: 'failed',
+      error: message,
+    })
     return
   }
 
-  const key = metricsProfileKey(namespace, targetRes.metadata.name)
+  const key = metricsProfileKey(namespace, deployment.metadata.name)
   const profile = useMetricsSimulatorStore.getState().getProfile(key)
-  const currentReplicas = targetRes.spec.replicas ?? 1
+  const currentReplicas = deployment.spec.replicas
 
-  // 指标缺失处理: 模拟一下如果没有设置任何 profile
-  const calculationDetails: string[] = []
-  if (!profile && (hpa.spec.metrics || []).length > 0) {
-    patchResourceRaw<HorizontalPodAutoscaler>(
-      'HorizontalPodAutoscaler',
-      hpa.metadata.name,
-      namespace,
-      (current) => ({
-        ...current,
-        status: { ...current.status, message: '无法获取监控指标' },
-      })
-    )
-    return
-  }
-
-  const recommendations = (hpa.spec.metrics || [])
-    .map((metric) => calculateMetricRecommendation(metric, profile, currentReplicas))
-    .filter((r) => r !== null) as NonNullable<
-    ReturnType<typeof calculateMetricRecommendation>
-  >[]
-
-  recommendations.forEach((r) => calculationDetails.push(r.formula))
-
+  // 真实 HPA 会对每个 metric 分别计算一个"建议副本数"，取其中最大的一个来
+  // 决定最终目标——只要有一个指标认为需要更多副本，就以它为准。
+  const recommendations = hpa.spec.metrics.map((metric) => {
+    const utilization = utilizationFor(metric, profile)
+    const target = metric.resource.target.averageUtilization
+    return {
+      metric,
+      utilization,
+      desired: Math.ceil(currentReplicas * (utilization / Math.max(1, target))),
+    }
+  })
   const primary = recommendations.reduce<(typeof recommendations)[number] | undefined>(
     (max, item) => (!max || item.desired > max.desired ? item : max),
     undefined
   )
-
-  if (recommendations.length > 1 && primary) {
-    calculationDetails.push(
-      `多指标策略：选择最大建议副本数 ${primary.desired} (${primary.name})`
-    )
-  }
-
   const rawDesired = primary?.desired ?? currentReplicas
+  const desiredReplicas = Math.min(
+    hpa.spec.maxReplicas,
+    Math.max(hpa.spec.minReplicas, rawDesired)
+  )
 
-  // 行为策略处理
-  const now = explicitNow ?? Date.now()
-  let scaleUpLimit = Infinity
-  let scaleDownLimit = 0
-
-  if (hpa.spec.behavior?.scaleUp) {
-    const rules = hpa.spec.behavior.scaleUp
-    if (rules.selectPolicy === 'Disabled') scaleUpLimit = currentReplicas
-    else if (rules.policies && rules.policies.length > 0) {
-      const limits = rules.policies.map((p) =>
-        p.type === 'Pods'
-          ? currentReplicas + p.value
-          : Math.ceil(currentReplicas * (1 + p.value / 100))
-      )
-      scaleUpLimit =
-        rules.selectPolicy === 'Min' ? Math.min(...limits) : Math.max(...limits)
-    }
-  }
-
-  if (hpa.spec.behavior?.scaleDown) {
-    const rules = hpa.spec.behavior.scaleDown
-    if (rules.selectPolicy === 'Disabled') scaleDownLimit = currentReplicas
-    else if (rules.policies && rules.policies.length > 0) {
-      const limits = rules.policies.map((p) =>
-        p.type === 'Pods'
-          ? currentReplicas - p.value
-          : Math.floor(currentReplicas * (1 - p.value / 100))
-      )
-      scaleDownLimit =
-        rules.selectPolicy === 'Min' ? Math.max(...limits) : Math.min(...limits)
-    }
-  }
-
-  let cappedDesired = rawDesired
-  if (rawDesired > currentReplicas) {
-    cappedDesired = Math.min(rawDesired, scaleUpLimit)
-    if (cappedDesired < rawDesired)
-      calculationDetails.push(`scaleUp policy 限制扩容至最多 ${cappedDesired} 副本`)
-  } else if (rawDesired < currentReplicas) {
-    cappedDesired = Math.max(rawDesired, scaleDownLimit)
-    if (cappedDesired > rawDesired)
-      calculationDetails.push(`scaleDown policy 限制缩容至最少 ${cappedDesired} 副本`)
-  }
-
-  const minRep = hpa.spec.minReplicas ?? 1
-  const desiredReplicas = Math.min(hpa.spec.maxReplicas, Math.max(minRep, cappedDesired))
-
+  const now = Date.now()
   const lastScaleTime = hpa.status.lastScaleTime
     ? Date.parse(hpa.status.lastScaleTime)
     : 0
-  const cooldownElapsed =
-    hpa.status.lastScaleTime === undefined || now - lastScaleTime >= HPA_SCALE_COOLDOWN_MS
-
-  // 缩容稳定窗口优先取 behavior，否则默认
-  const stabilizationWindowMs =
-    (hpa.spec.behavior?.scaleDown?.stabilizationWindowSeconds ??
-      HPA_SCALE_DOWN_STABILIZATION_MS / 1000) * 1000
-
-  const cpuMetric = recommendations.find((item) => item.name === 'cpu')
-  const memoryMetric = recommendations.find((item) => item.name === 'memory')
+  const cooldownElapsed = now - lastScaleTime >= HPA_SCALE_COOLDOWN_MS
+  const cpuMetric = recommendations.find((item) => item.metric.resource.name === 'cpu')
+  const memoryMetric = recommendations.find(
+    (item) => item.metric.resource.name === 'memory'
+  )
 
   let appliedReplicas = currentReplicas
   let scaled = false
@@ -315,21 +127,20 @@ export function reconcileHpa(
   let message: string | undefined
 
   if (desiredReplicas > currentReplicas) {
+    // 需求上升了，"是否应该缩容"的观察窗口要重新开始计时。
     lowUtilizationSince = undefined
     if (cooldownElapsed) {
       appliedReplicas = desiredReplicas
       scaled = true
     } else {
       message = `期望扩容到 ${desiredReplicas} 副本，冷却时间未到，暂不执行`
-      calculationDetails.push(message)
     }
   } else if (desiredReplicas < currentReplicas) {
     if (!lowUtilizationSince) {
       lowUtilizationSince = new Date(now).toISOString()
       message = `期望缩容到 ${desiredReplicas} 副本，正在等待缩容稳定窗口`
-      calculationDetails.push(message)
     } else if (
-      now - Date.parse(lowUtilizationSince) >= stabilizationWindowMs &&
+      now - Date.parse(lowUtilizationSince) >= HPA_SCALE_DOWN_STABILIZATION_MS &&
       cooldownElapsed
     ) {
       appliedReplicas = desiredReplicas
@@ -337,7 +148,6 @@ export function reconcileHpa(
       lowUtilizationSince = undefined
     } else {
       message = `期望缩容到 ${desiredReplicas} 副本，正在等待缩容稳定窗口`
-      calculationDetails.push(message)
     }
   } else {
     lowUtilizationSince = undefined
@@ -359,10 +169,19 @@ export function reconcileHpa(
           : current.status.lastScaleTime,
         lowUtilizationSince,
         message,
-        calculationDetails,
       },
     })
   )
+
+  recordTraceStep({
+    resource: hpa,
+    component: 'hpa-controller',
+    action: 'RECONCILE_HPA',
+    description: 'HPA Controller 根据 Metrics Simulator 指标计算期望副本数',
+    input: { currentReplicas, profile },
+    output: { desiredReplicas, scaled, appliedReplicas, message },
+    status: 'success',
+  })
 
   if (scaled && appliedReplicas !== currentReplicas) {
     emitEvent({
@@ -373,44 +192,39 @@ export function reconcileHpa(
       },
       type: 'Normal',
       reason: 'SuccessfulRescale',
-      message: `New size: ${appliedReplicas}; reason: ${primary?.name ?? 'cpu'} metrics recommendation`,
+      message: `New size: ${appliedReplicas}; reason: ${primary?.metric.resource.name ?? 'cpu'} resource utilization ${primary?.utilization ?? 0}%`,
     })
-
-    updateResource<Deployment | StatefulSet>(
-      targetKind as 'Deployment' | 'StatefulSet',
-      targetRes.metadata.name,
+    // 复用 kubectl scale 同一条路径（updateResource 触发 reconcileDeployment），
+    // 这样滚动更新、拓扑、动画、追踪器都不需要为 HPA 再单独接一遍。
+    updateResource<Deployment>(
+      'Deployment',
+      deployment.metadata.name,
       namespace,
-      (current) => {
-        if (current.kind === 'Deployment') {
-          return {
-            ...current,
-            spec: {
-              ...(current as Extract<typeof current, { kind: 'Deployment' }>).spec,
-              replicas: appliedReplicas,
-            },
-          } as Deployment | StatefulSet
-        } else {
-          return {
-            ...current,
-            spec: {
-              ...(current as Extract<typeof current, { kind: 'StatefulSet' }>).spec,
-              replicas: appliedReplicas,
-            },
-          } as Deployment | StatefulSet
-        }
-      }
+      (current) => ({
+        ...current,
+        spec: { ...current.spec, replicas: appliedReplicas },
+      })
     )
   }
 }
 
-function reconcileHpasForTarget(namespace: string | undefined, targetName: string): void {
+/** 找到目标 Deployment 上的全部 HPA（正常情况下最多一个）并重新调谐。 */
+function reconcileHpasForTarget(
+  namespace: string | undefined,
+  deploymentName: string
+): void {
   const hpas = listResources<HorizontalPodAutoscaler>(
     'HorizontalPodAutoscaler',
     namespace
-  ).filter((hpa) => hpa.spec.scaleTargetRef.name === targetName)
-  hpas.forEach((h) => reconcileHpa(h))
+  ).filter(
+    (hpa) =>
+      hpa.spec.scaleTargetRef.kind === 'Deployment' &&
+      hpa.spec.scaleTargetRef.name === deploymentName
+  )
+  hpas.forEach(reconcileHpa)
 }
 
+/** 供界面"负载模拟"面板调用：设置每秒请求数（仅展示用，不直接参与扩缩容计算）。 */
 export function applyRequestsPerSecond(
   namespace: string | undefined,
   deploymentName: string,
@@ -441,16 +255,17 @@ export function adjustMemoryLoad(
   reconcileHpasForTarget(namespace, deploymentName)
 }
 
+/** 突发流量：CPU 使用率一次性跳到高位，模拟秒杀/突发请求。 */
 export function applyBurstTraffic(
   namespace: string | undefined,
   deploymentName: string
 ): void {
   const key = metricsProfileKey(namespace, deploymentName)
   useMetricsSimulatorStore.getState().setCpuPercent(key, 180)
-  useMetricsSimulatorStore.getState().setTrafficModel(key, 'burst')
   reconcileHpasForTarget(namespace, deploymentName)
 }
 
+/** 周期流量：在低谷（30%）和高峰（150%）之间切换，每点一次前进一个阶段。 */
 export function applyPeriodicTraffic(
   namespace: string | undefined,
   deploymentName: string
@@ -460,18 +275,6 @@ export function applyPeriodicTraffic(
   useMetricsSimulatorStore
     .getState()
     .setCpuPercent(key, current.cpuPercent >= 100 ? 30 : 150)
-  useMetricsSimulatorStore.getState().setTrafficModel(key, 'periodic')
-  useMetricsSimulatorStore.getState().setPeriodicHigh(key, current.cpuPercent < 100)
-  reconcileHpasForTarget(namespace, deploymentName)
-}
-
-export function setTrafficModel(
-  namespace: string | undefined,
-  deploymentName: string,
-  model: 'steady' | 'increasing' | 'decreasing'
-): void {
-  const key = metricsProfileKey(namespace, deploymentName)
-  useMetricsSimulatorStore.getState().setTrafficModel(key, model)
   reconcileHpasForTarget(namespace, deploymentName)
 }
 
@@ -484,6 +287,12 @@ export function resetLoadProfile(
   reconcileHpasForTarget(namespace, deploymentName)
 }
 
+/**
+ * 模拟单个 Pod 故障：随机删除该 Deployment 名下一个 Running 的 Pod。
+ * 复用已有的 ReplicaSet 自愈能力（deleteResource 删除 Pod 后会让 ReplicaSet
+ * 重新调谐补齐），用来演示"单个 Pod 故障不影响 HPA 的扩缩容判断，
+ * 因为 HPA 是按 Deployment 整体的目标副本数决策，不是按单个 Pod"。
+ */
 export function simulateSinglePodFailure(
   namespace: string | undefined,
   deploymentName: string

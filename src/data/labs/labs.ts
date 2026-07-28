@@ -661,7 +661,7 @@ spec:
           message: `web-hpa 的 scaleTargetRef 应该指向 Deployment/web。`,
         }
       }
-      if (hpa.status.currentReplicas <= (hpa.spec.minReplicas ?? 1)) {
+      if (hpa.status.currentReplicas <= hpa.spec.minReplicas) {
         return {
           passed: false,
           message: `当前副本数是 ${hpa.status.currentReplicas}，还没有超过 minReplicas（${hpa.spec.minReplicas}），请去"负载模拟"面板提高 CPU 压力。`,

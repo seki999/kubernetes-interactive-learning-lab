@@ -568,7 +568,7 @@ spec:
     expect(result.lines.some((line) => line.includes('Max Replicas:'))).toBe(true)
     expect(result.lines.some((line) => line.includes('Current Replicas:'))).toBe(true)
     expect(result.lines.some((line) => line.includes('Desired Replicas:'))).toBe(true)
-    expect(result.lines.some((line) => line.includes('Resource cpu:'))).toBe(true)
+    expect(result.lines.some((line) => line.includes('CPU Utilization:'))).toBe(true)
   })
 
   it('describe hpa 目标不存在时报错 NotFound', () => {

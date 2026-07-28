@@ -13,22 +13,19 @@ import { create } from 'zustand'
 // 编排逻辑（改指标之后要不要立刻让 HPA 重新计算）放在 hpaController.ts，
 // 保持"状态存储"和"业务编排"分离。
 
-export type TrafficModel = 'steady' | 'increasing' | 'decreasing' | 'burst' | 'periodic'
-
 export interface LoadProfile {
+  /** 每秒请求数，纯粹用于界面展示"当前模拟的流量"，不直接参与扩缩容计算。 */
   requestsPerSecond: number
+  /** 平均 CPU 使用率，相对于容器 resources.requests.cpu 的百分比，0-200。 */
   cpuPercent: number
+  /** 平均内存使用率，相对于容器 resources.requests.memory 的百分比，0-200。 */
   memoryPercent: number
-  trafficModel: TrafficModel
-  periodicHigh: boolean
 }
 
 export const DEFAULT_LOAD_PROFILE: LoadProfile = {
   requestsPerSecond: 0,
   cpuPercent: 50,
   memoryPercent: 50,
-  trafficModel: 'steady',
-  periodicHigh: false,
 }
 
 const MIN_PERCENT = 0
@@ -54,8 +51,6 @@ interface MetricsSimulatorState {
   resetProfile: (key: string) => void
   /** 清空全部 Deployment 的负载画像，供"重置集群"整体调用，避免跨实验残留。 */
   resetAllProfiles: () => void
-  setTrafficModel: (key: string, model: TrafficModel) => void
-  setPeriodicHigh: (key: string, high: boolean) => void
 }
 
 export const useMetricsSimulatorStore = create<MetricsSimulatorState>()((set, get) => ({
@@ -106,24 +101,4 @@ export const useMetricsSimulatorStore = create<MetricsSimulatorState>()((set, ge
       return { profiles: next }
     }),
   resetAllProfiles: () => set({ profiles: {} }),
-  setTrafficModel: (key, model) =>
-    set((state) => ({
-      profiles: {
-        ...state.profiles,
-        [key]: {
-          ...(state.profiles[key] ?? DEFAULT_LOAD_PROFILE),
-          trafficModel: model,
-        },
-      },
-    })),
-  setPeriodicHigh: (key, high) =>
-    set((state) => ({
-      profiles: {
-        ...state.profiles,
-        [key]: {
-          ...(state.profiles[key] ?? DEFAULT_LOAD_PROFILE),
-          periodicHigh: high,
-        },
-      },
-    })),
 }))

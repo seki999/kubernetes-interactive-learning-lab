@@ -10,24 +10,21 @@ test.describe('HPA Interactive Simulation', () => {
   })
 
   test('Should be able to trigger load and see HPA scaling', async ({ page }) => {
-    // Open the pod/deployment terminal or use UI directly.
-    // Actually, in the showcase cluster, "web" Deployment and "web-hpa" exist out of the box.
-    // Let's click the web Deployment to open the details panel.
     const deploymentNode = page.locator('text=Deployment/web')
 
     // Check if the deployment node exists (it is part of the complete cluster seed).
     if (await deploymentNode.isVisible()) {
-      await deploymentNode.click()
+       await deploymentNode.click()
 
-      // Verify the details panel opens
-      await expect(page.locator('h2', { hasText: 'Deployment 详情' })).toBeVisible()
+       // Verify the details panel opens
+       await expect(page.locator('h2', { hasText: 'Deployment 详情' })).toBeVisible()
 
-      // Click "突发流量" to trigger scaling
-      const burstButton = page.locator('button', { hasText: '突发流量' })
-      await burstButton.click()
+       // Click "突发流量" to trigger scaling
+       const burstButton = page.locator('button', { hasText: '突发流量' })
+       await burstButton.click()
 
-      // Expect to see scale up message
-      await expect(page.locator('text=期望扩容到 10 副本')).toBeVisible()
+       // Expect to see scale up message
+       await expect(page.locator('text=期望扩容到 10 副本')).toBeVisible()
     }
   })
 })

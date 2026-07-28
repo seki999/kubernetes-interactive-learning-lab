@@ -2,7 +2,7 @@
 
 ## 审计与状态映射
 
-- **HPA 与负载模拟**: 已完成。实现了基于定时器轮询的自动扩缩容，支持多种自动流量模型（持续增长、持续下降、突发后恢复、周期性高峰和低谷）。实现了自定义指标的完整解析支持 (Pods/RPS, Object, External)，允许多指标时取最大建议副本数，实现了 stabilizationWindowSeconds 和 selectPolicy/policies 控制，并完整可视化每次 HPA 的指标计算详情和拦截原因。
+- **HPA 与负载模拟**: 已验证完成。
 - **Job / CronJob / DaemonSet**: 已验证完成，修正了课程文本过时说明。
 - **Deployment 滚动更新**: 完成。加入了 UI 的 ReplicaSet 历史展示，以及 `pause`、`resume`、`progressDeadlineSeconds` 的支持。
 - **请求追踪器 (Trace Viewer)**: 完成。对 UI 进行了升级支持追踪步骤的资源定位操作联动。
