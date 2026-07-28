@@ -243,7 +243,7 @@ describe('HPA 控制器', () => {
 
   it('多个 metrics 时取建议副本数最大的那个', () => {
     createWebDeployment(4)
-    const hpa = createHpa({
+    createHpa({
       maxReplicas: 20,
       metrics: [
         {
@@ -267,7 +267,7 @@ describe('HPA 控制器', () => {
     const key = metricsProfileKey('default', 'web')
     useMetricsSimulatorStore.getState().setCpuPercent(key, 60) // desired(cpu) = ceil(4*60/50) = 5
     useMetricsSimulatorStore.getState().setMemoryPercent(key, 200) // desired(memory) = ceil(4*200/50) = 16
-    reconcileHpa(hpa)
+    reconcileHpa(getResource('HorizontalPodAutoscaler', 'web-hpa', 'default')!)
 
     const updated = getResource<HorizontalPodAutoscaler>(
       'HorizontalPodAutoscaler',
@@ -343,5 +343,121 @@ describe('HPA 控制器', () => {
       spec: { ...current.spec, replicas: 2 },
     }))
     expect(getResource<Deployment>('Deployment', 'web', 'default')?.spec.replicas).toBe(2)
+  })
+
+  it('测试 Pods 类型指标 (RPS)', () => {
+    createWebDeployment(2)
+    createHpa({
+      metrics: [
+        {
+          type: 'Pods',
+          pods: {
+            metric: { name: 'requests-per-second' },
+            target: { type: 'AverageValue', averageValue: 10 },
+          },
+        },
+      ],
+    })
+    const key = metricsProfileKey('default', 'web')
+    useMetricsSimulatorStore.getState().setRequestsPerSecond(key, 40) // 40 / 10 = 4; desired = 2 * 4 = 8
+    reconcileHpa(getResource('HorizontalPodAutoscaler', 'web-hpa', 'default')!)
+
+    const updated = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
+    expect(updated?.status.desiredReplicas).toBe(8)
+  })
+
+  it('测试 scaleUp policy 限制扩容速度', () => {
+    createWebDeployment(2)
+    createHpa({
+      maxReplicas: 20,
+      behavior: {
+        scaleUp: {
+          policies: [{ type: 'Pods', value: 2, periodSeconds: 15 }],
+        },
+      },
+      metrics: [
+        {
+          type: 'Resource',
+          resource: {
+            name: 'cpu',
+            target: { type: 'Utilization', averageUtilization: 50 },
+          },
+        },
+      ],
+    })
+    const key = metricsProfileKey('default', 'web')
+    useMetricsSimulatorStore.getState().setCpuPercent(key, 200) // ratio 4, rawDesired = 8
+    reconcileHpa(getResource('HorizontalPodAutoscaler', 'web-hpa', 'default')!)
+
+    // With scaleUp limit of 2 pods, it should cap at 2 + 2 = 4 instead of 8
+    const updated = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
+    expect(updated?.status.desiredReplicas).toBe(4)
+    expect(updated?.status.calculationDetails?.join('')).toContain(
+      'scaleUp policy 限制扩容'
+    )
+  })
+
+  it('测试 scaleDown policy 限制缩容速度', () => {
+    createWebDeployment(10)
+    createHpa({
+      minReplicas: 1,
+      maxReplicas: 20,
+      behavior: {
+        scaleDown: {
+          stabilizationWindowSeconds: 0, // Disable stabilization window for immediate scale down
+          policies: [{ type: 'Percent', value: 10, periodSeconds: 15 }],
+        },
+      },
+      metrics: [
+        {
+          type: 'Resource',
+          resource: {
+            name: 'cpu',
+            target: { type: 'Utilization', averageUtilization: 50 },
+          },
+        },
+      ],
+    })
+
+    // Set HPA current state
+    updateResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default',
+      (curr) => ({
+        ...curr,
+        status: { ...curr.status, currentReplicas: 10 },
+      })
+    )
+
+    const key = metricsProfileKey('default', 'web')
+    useMetricsSimulatorStore.getState().setCpuPercent(key, 10) // ratio 0.2, rawDesired = 2
+
+    const updatedHpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )!
+    reconcileHpa(updatedHpa)
+
+    // With scaleDown limit of 10% on 10 pods, we can scale down by at most 1 pod.
+    // So 10 -> 9. (Note: math.floor(10 * 0.9) = 9).
+    const updated = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
+    expect(updated?.status.desiredReplicas).toBe(9)
+    expect(updated?.status.calculationDetails?.join('')).toContain(
+      'scaleDown policy 限制缩容'
+    )
   })
 })
