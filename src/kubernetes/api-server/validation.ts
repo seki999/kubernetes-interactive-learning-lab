@@ -1,4 +1,4 @@
-import type { KubernetesResource } from '@/types/k8s'
+import type { Container, HpaResourceMetric, KubernetesResource } from '@/types/k8s'
 
 const DNS_1123_NAME = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/
 
@@ -52,7 +52,7 @@ export function validateResource(resource: KubernetesResource): string[] {
       }
     }
     const containers = resource.spec.template?.spec?.containers ?? []
-    containers.forEach((container: any, index: number) => {
+    containers.forEach((container: Container, index: number) => {
       if (!container.image) {
         errors.push(`第 ${index + 1} 个容器缺少 image`)
       }
@@ -74,7 +74,7 @@ export function validateResource(resource: KubernetesResource): string[] {
   }
 
   if (resource.kind === 'Pod') {
-    resource.spec.containers.forEach((container: any, index: number) => {
+    resource.spec.containers.forEach((container: Container, index: number) => {
       if (!container.image) {
         errors.push(`第 ${index + 1} 个容器缺少 image`)
       }
@@ -85,9 +85,11 @@ export function validateResource(resource: KubernetesResource): string[] {
     if (!resource.spec.template?.spec?.containers?.length) {
       errors.push('Job 必须设置 spec.template.spec.containers')
     }
-    resource.spec.template?.spec?.containers?.forEach((container: any, index: number) => {
-      if (!container.image) errors.push(`第 ${index + 1} 个容器缺少 image`)
-    })
+    resource.spec.template?.spec?.containers?.forEach(
+      (container: Container, index: number) => {
+        if (!container.image) errors.push(`第 ${index + 1} 个容器缺少 image`)
+      }
+    )
     for (const [name, value] of [
       ['completions', resource.spec.completions],
       ['parallelism', resource.spec.parallelism],
@@ -124,7 +126,7 @@ export function validateResource(resource: KubernetesResource): string[] {
     if (!resource.spec.metrics || resource.spec.metrics.length === 0) {
       errors.push('HorizontalPodAutoscaler 必须至少设置一个 metrics')
     }
-    resource.spec.metrics?.forEach((metric: any, index: number) => {
+    resource.spec.metrics?.forEach((metric: HpaResourceMetric, index: number) => {
       const utilization = metric.resource?.target?.averageUtilization
       if (!Number.isInteger(utilization) || utilization <= 0) {
         errors.push(

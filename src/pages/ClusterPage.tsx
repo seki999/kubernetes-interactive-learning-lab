@@ -6,7 +6,12 @@ import { ClusterTopology } from '@/components/Topology/ClusterTopology'
 import { ClusterExperienceControls } from '@/components/ClusterExperienceControls'
 import { RESOURCE_CONCEPTS } from '@/data/resourceConcepts'
 import { ALL_RESOURCE_KINDS, isClusterScoped } from '@/types/k8s'
-import type { KubernetesResource, Namespace, ResourceKind } from '@/types/k8s'
+import type {
+  KubernetesResource,
+  Namespace,
+  NodeCondition,
+  ResourceKind,
+} from '@/types/k8s'
 
 function getStatusSummary(resource: KubernetesResource): string {
   switch (resource.kind) {
@@ -22,7 +27,7 @@ function getStatusSummary(resource: KubernetesResource): string {
       return `${resource.addresses.length} 个可用地址`
     case 'Node': {
       const ready = resource.status.conditions.some(
-        (c: any) => c.type === 'Ready' && c.status === 'True'
+        (c: NodeCondition) => c.type === 'Ready' && c.status === 'True'
       )
       if (!ready) return 'NotReady'
       return resource.spec.unschedulable ? 'Ready,SchedulingDisabled' : 'Ready'
