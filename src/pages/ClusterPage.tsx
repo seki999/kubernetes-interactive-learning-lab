@@ -6,7 +6,12 @@ import { ClusterTopology } from '@/components/Topology/ClusterTopology'
 import { ClusterExperienceControls } from '@/components/ClusterExperienceControls'
 import { RESOURCE_CONCEPTS } from '@/data/resourceConcepts'
 import { ALL_RESOURCE_KINDS, isClusterScoped } from '@/types/k8s'
-import type { KubernetesResource, Namespace, NodeCondition, ResourceKind } from '@/types/k8s'
+import type {
+  KubernetesResource,
+  Namespace,
+  NodeCondition,
+  ResourceKind,
+} from '@/types/k8s'
 
 function getStatusSummary(resource: KubernetesResource): string {
   switch (resource.kind) {
