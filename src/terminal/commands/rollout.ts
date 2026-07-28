@@ -35,7 +35,7 @@ export function runRollout(argv: string[]): CommandOutput {
   const target = parseTarget(positional)
   if (!action || !target) {
     return fail([
-      'error: 用法：kubectl rollout <status|history|undo|restart> deployment/<名称>，DaemonSet 目前只支持 kubectl rollout status daemonset/<名称>',
+      'error: 用法：kubectl rollout <status|history|undo|restart|pause|resume> deployment/<名称>，DaemonSet 目前只支持 kubectl rollout status daemonset/<名称>',
     ])
   }
 
@@ -59,6 +59,10 @@ export function runRollout(argv: string[]): CommandOutput {
       return rolloutUndo(deployment, toStringFlag(flags['to-revision']))
     case 'restart':
       return rolloutRestart(deployment)
+    case 'pause':
+      return rolloutPause(deployment)
+    case 'resume':
+      return rolloutResume(deployment)
     default:
       return fail([`error: 不支持 kubectl rollout ${action}`])
   }
@@ -186,6 +190,52 @@ function rolloutUndo(
       })
     )
     return ok([`deployment.apps/${deployment.metadata.name} rolled back`])
+  } catch (error) {
+    return fail([formatApiServerError(error)])
+  }
+}
+
+function rolloutPause(deployment: Deployment): CommandOutput {
+  try {
+    if (deployment.spec.paused) {
+      return ok([`deployment.apps/${deployment.metadata.name} is already paused`])
+    }
+    updateResource<Deployment>(
+      'Deployment',
+      deployment.metadata.name,
+      deployment.metadata.namespace,
+      (current) => ({
+        ...current,
+        spec: {
+          ...current.spec,
+          paused: true,
+        },
+      })
+    )
+    return ok([`deployment.apps/${deployment.metadata.name} paused`])
+  } catch (error) {
+    return fail([formatApiServerError(error)])
+  }
+}
+
+function rolloutResume(deployment: Deployment): CommandOutput {
+  try {
+    if (!deployment.spec.paused) {
+      return ok([`deployment.apps/${deployment.metadata.name} is already resumed`])
+    }
+    updateResource<Deployment>(
+      'Deployment',
+      deployment.metadata.name,
+      deployment.metadata.namespace,
+      (current) => ({
+        ...current,
+        spec: {
+          ...current.spec,
+          paused: false,
+        },
+      })
+    )
+    return ok([`deployment.apps/${deployment.metadata.name} resumed`])
   } catch (error) {
     return fail([formatApiServerError(error)])
   }

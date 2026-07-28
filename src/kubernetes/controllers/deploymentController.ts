@@ -154,6 +154,18 @@ export function reconcileDeployment(deployment: Deployment): void {
     input: { replicas: deployment.spec.replicas },
   })
   const namespace = deployment.metadata.namespace
+
+  if (deployment.spec.paused) {
+    recordTraceStep({
+      resource: deployment,
+      component: 'deployment-controller',
+      action: 'PAUSE_DEPLOYMENT',
+      description: 'Deployment 处于暂停状态，停止滚动更新调谐（部分模拟）',
+      input: { paused: deployment.spec.paused },
+    })
+    syncDeploymentStatus(deployment.metadata.name, namespace)
+    return
+  }
   let replicaSets = normalizeReplicaSetRevisions(ownedReplicaSets(deployment))
   const desiredHash = podTemplateHash(deployment.spec.template)
   const matchingReplicaSet = replicaSets.find(

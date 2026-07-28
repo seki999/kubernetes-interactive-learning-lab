@@ -6,7 +6,7 @@ import {
 import { ownedReplicaSets, replicaSetRevision } from '@/kubernetes/deployment/rollout'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
-import type { Deployment, Pod, ReplicaSet, StatefulSet } from '@/types/k8s'
+import type { Deployment, Pod, ReplicaSet, StatefulSet, DeploymentConditionType } from '@/types/k8s'
 
 function isPodReady(pod: Pod): boolean {
   return (
@@ -62,7 +62,7 @@ export function syncDeploymentStatus(name: string, namespace: string | undefined
   const updatedPods = latest ? podsOwnedBy([latest], namespace) : []
   const readyReplicas = allPods.filter(isPodReady).length
   const updatedReadyReplicas = updatedPods.filter(isPodReady).length
-  const failed = updatedPods.some((pod) => pod.status.phase === 'ImagePullBackOff')
+  let failed = updatedPods.some((pod) => pod.status.phase === 'ImagePullBackOff')
   const oldReplicas = replicaSets
     .filter((replicaSet) => replicaSet.metadata.uid !== latest?.metadata.uid)
     .reduce((total, replicaSet) => total + replicaSet.spec.replicas, 0)
@@ -71,7 +71,19 @@ export function syncDeploymentStatus(name: string, namespace: string | undefined
     latest.spec.replicas === deployment.spec.replicas &&
     updatedReadyReplicas >= deployment.spec.replicas &&
     oldReplicas === 0
-  const condition = failed ? 'Failed' : complete ? 'Available' : 'Progressing'
+
+  let condition: DeploymentConditionType = failed ? 'Failed' : complete ? 'Available' : 'Progressing'
+
+  // Implement progressDeadlineSeconds (部分模拟)
+  if (condition === 'Progressing' && latest && !deployment.spec.paused) {
+    const progressDeadlineSeconds = deployment.spec.progressDeadlineSeconds ?? 600
+    const createdAt = new Date(latest.metadata.creationTimestamp).getTime()
+    const now = Date.now()
+    if (now - createdAt > progressDeadlineSeconds * 1000) {
+      failed = true
+      condition = 'Failed'
+    }
+  }
   const revision = latest ? replicaSetRevision(latest) : 0
   const previousCondition = deployment.status.condition
 
@@ -91,7 +103,7 @@ export function syncDeploymentStatus(name: string, namespace: string | undefined
           ? 'NewReplicaSetAvailable'
           : 'ReplicaSetUpdated',
       message: failed
-        ? `Revision ${revision} 的新 Pod 镜像拉取失败`
+        ? `Revision ${revision} 滚动更新失败（可能是镜像拉取失败或超过 progressDeadlineSeconds）`
         : complete
           ? `Revision ${revision} 已成功发布`
           : `正在发布 Revision ${revision}：${updatedReadyReplicas}/${deployment.spec.replicas} 个新 Pod 已就绪`,
