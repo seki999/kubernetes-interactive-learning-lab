@@ -5,10 +5,7 @@ import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { runKubectlCommand } from '@/terminal/commands/runKubectlCommand'
 import { applyYaml } from '@/simulation/yaml/apply/applyYamlDocuments'
 import { useTraceStore } from '@/stores/useTraceStore'
-import {
-  resetTraceRuntimeForTests,
-  startKubernetesTrace,
-} from './traceManager'
+import { resetTraceRuntimeForTests, startKubernetesTrace } from './traceManager'
 import type { Node } from '@/types/k8s'
 
 function seedNode(): void {
@@ -40,9 +37,7 @@ describe('Kubernetes Trace', () => {
   })
 
   it('kubectl create 会记录 API Server、etcd、Controller、Scheduler 和 Kubelet 链路', async () => {
-    runKubectlCommand(
-      'kubectl create deployment web --image=nginx:1.27 --replicas=1'
-    )
+    runKubectlCommand('kubectl create deployment web --image=nginx:1.27 --replicas=1')
     await vi.advanceTimersByTimeAsync(600)
 
     const trace = useTraceStore.getState().traces[0]

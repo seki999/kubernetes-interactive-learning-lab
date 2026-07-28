@@ -29,7 +29,9 @@ export function MetricsSimulatorControls({ deployment }: { deployment: Deploymen
   const namespace = deployment.metadata.namespace
   const name = deployment.metadata.name
   const key = metricsProfileKey(namespace, name)
-  const profile = useMetricsSimulatorStore((state) => state.profiles[key] ?? DEFAULT_LOAD_PROFILE)
+  const profile = useMetricsSimulatorStore(
+    (state) => state.profiles[key] ?? DEFAULT_LOAD_PROFILE
+  )
 
   const resources = useEtcdStore((state) => state.resources)
   const allResources = useMemo(() => Object.values(resources), [resources])
@@ -57,7 +59,9 @@ export function MetricsSimulatorControls({ deployment }: { deployment: Deploymen
   function handlePodFailure() {
     const ok = simulateSinglePodFailure(namespace, name)
     setFailureMessage(
-      ok ? '已删除一个 Running 的 Pod，观察它是否被自动补齐。' : '没有找到可以模拟故障的 Running Pod。'
+      ok
+        ? '已删除一个 Running 的 Pod，观察它是否被自动补齐。'
+        : '没有找到可以模拟故障的 Running Pod。'
     )
   }
 
@@ -71,15 +75,15 @@ export function MetricsSimulatorControls({ deployment }: { deployment: Deploymen
 
       {hpa && (
         <div className="mt-2 rounded-md border border-amber-300 bg-white p-2 text-xs dark:border-amber-800 dark:bg-slate-900">
-          <p className="font-medium">
-            关联 HorizontalPodAutoscaler：{hpa.metadata.name}
-          </p>
+          <p className="font-medium">关联 HorizontalPodAutoscaler：{hpa.metadata.name}</p>
           <p className="mt-1 text-slate-600 dark:text-slate-300">
-            当前副本 {hpa.status.currentReplicas} · 期望副本 {hpa.status.desiredReplicas} ·
-            范围 [{hpa.spec.minReplicas}, {hpa.spec.maxReplicas}]
+            当前副本 {hpa.status.currentReplicas} · 期望副本 {hpa.status.desiredReplicas}{' '}
+            · 范围 [{hpa.spec.minReplicas}, {hpa.spec.maxReplicas}]
           </p>
           {hpa.status.message && (
-            <p className="mt-1 text-amber-700 dark:text-amber-400">{hpa.status.message}</p>
+            <p className="mt-1 text-amber-700 dark:text-amber-400">
+              {hpa.status.message}
+            </p>
           )}
         </div>
       )}
@@ -93,50 +97,96 @@ export function MetricsSimulatorControls({ deployment }: { deployment: Deploymen
           className="w-20 rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
           aria-label="每秒请求数"
         />
-        <button type="button" onClick={handleRpsSubmit} className="rounded border border-amber-400 px-2 py-1 text-xs">
+        <button
+          type="button"
+          onClick={handleRpsSubmit}
+          className="rounded border border-amber-400 px-2 py-1 text-xs"
+        >
           设置每秒请求数
         </button>
       </div>
 
       <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" onClick={() => adjustCpuLoad(namespace, name, 20)} className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => adjustCpuLoad(namespace, name, 20)}
+          className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+        >
           CPU 压力 +20%
         </button>
-        <button type="button" onClick={() => adjustCpuLoad(namespace, name, -20)} className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => adjustCpuLoad(namespace, name, -20)}
+          className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+        >
           CPU 压力 -20%
         </button>
-        <button type="button" onClick={() => adjustMemoryLoad(namespace, name, 20)} className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => adjustMemoryLoad(namespace, name, 20)}
+          className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+        >
           内存压力 +20%
         </button>
-        <button type="button" onClick={() => adjustMemoryLoad(namespace, name, -20)} className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => adjustMemoryLoad(namespace, name, -20)}
+          className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+        >
           内存压力 -20%
         </button>
       </div>
 
       <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" onClick={() => adjustCpuLoad(namespace, name, 30)} className="rounded border border-emerald-400 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-400">
+        <button
+          type="button"
+          onClick={() => adjustCpuLoad(namespace, name, 30)}
+          className="rounded border border-emerald-400 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-400"
+        >
           流量增长
         </button>
-        <button type="button" onClick={() => adjustCpuLoad(namespace, name, -30)} className="rounded border border-sky-400 px-2 py-1 text-xs text-sky-700 dark:text-sky-400">
+        <button
+          type="button"
+          onClick={() => adjustCpuLoad(namespace, name, -30)}
+          className="rounded border border-sky-400 px-2 py-1 text-xs text-sky-700 dark:text-sky-400"
+        >
           流量下降
         </button>
-        <button type="button" onClick={() => applyBurstTraffic(namespace, name)} className="rounded border border-red-400 px-2 py-1 text-xs text-red-700 dark:text-red-400">
+        <button
+          type="button"
+          onClick={() => applyBurstTraffic(namespace, name)}
+          className="rounded border border-red-400 px-2 py-1 text-xs text-red-700 dark:text-red-400"
+        >
           突发流量
         </button>
-        <button type="button" onClick={() => applyPeriodicTraffic(namespace, name)} className="rounded border border-violet-400 px-2 py-1 text-xs text-violet-700 dark:text-violet-400">
+        <button
+          type="button"
+          onClick={() => applyPeriodicTraffic(namespace, name)}
+          className="rounded border border-violet-400 px-2 py-1 text-xs text-violet-700 dark:text-violet-400"
+        >
           周期流量（高峰/低谷切换）
         </button>
-        <button type="button" onClick={() => resetLoadProfile(namespace, name)} className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => resetLoadProfile(namespace, name)}
+          className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+        >
           重置为默认
         </button>
       </div>
 
       <div className="mt-2">
-        <button type="button" onClick={handlePodFailure} className="rounded border border-red-400 px-2 py-1 text-xs text-red-700 dark:text-red-400">
+        <button
+          type="button"
+          onClick={handlePodFailure}
+          className="rounded border border-red-400 px-2 py-1 text-xs text-red-700 dark:text-red-400"
+        >
           模拟单个 Pod 故障
         </button>
         {failureMessage && (
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{failureMessage}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {failureMessage}
+          </p>
         )}
       </div>
 

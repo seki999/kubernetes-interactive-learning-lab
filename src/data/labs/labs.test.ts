@@ -61,11 +61,14 @@ describe('实验自动检查 - 初始状态不应该直接通过', () => {
     vi.useRealTimers()
   })
 
-  it.each(LABS.filter((lab) => lab.interactive))('$title：重置后不满足目标', async (lab) => {
-    lab.initialSetup()
-    await settle()
-    expect(lab.check(allResources()).passed).toBe(false)
-  })
+  it.each(LABS.filter((lab) => lab.interactive))(
+    '$title：重置后不满足目标',
+    async (lab) => {
+      lab.initialSetup()
+      await settle()
+      expect(lab.check(allResources()).passed).toBe(false)
+    }
+  )
 })
 
 describe('实验自动检查 - 完成正确操作后应该通过', () => {
@@ -82,7 +85,13 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Pod>({
       apiVersion: 'v1',
       kind: 'Pod',
-      metadata: { uid: '', name: 'first-pod', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'first-pod',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: { containers: [{ name: 'nginx', image: 'nginx:1.27' }] },
       status: { phase: 'Pending', containerStatuses: [] },
     })
@@ -96,13 +105,28 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Deployment>({
       apiVersion: 'apps/v1',
       kind: 'Deployment',
-      metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'web',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
         replicas: 2,
         selector: { matchLabels: { app: 'web' } },
-        template: { metadata: { labels: { app: 'web' } }, spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] } },
+        template: {
+          metadata: { labels: { app: 'web' } },
+          spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
+        },
       },
-      status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+      status: {
+        replicas: 0,
+        readyReplicas: 0,
+        availableReplicas: 0,
+        updatedReplicas: 0,
+        condition: 'Progressing',
+      },
     })
     await settle()
     expect(lab.check(allResources()).passed).toBe(true)
@@ -127,8 +151,18 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Service>({
       apiVersion: 'v1',
       kind: 'Service',
-      metadata: { uid: '', name: 'web-svc', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
-      spec: { type: 'ClusterIP', selector: { app: 'web' }, ports: [{ port: 80, targetPort: 80 }] },
+      metadata: {
+        uid: '',
+        name: 'web-svc',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
+      spec: {
+        type: 'ClusterIP',
+        selector: { app: 'web' },
+        ports: [{ port: 80, targetPort: 80 }],
+      },
       status: { clusterIP: '10.96.0.10' },
     })
     expect(lab.check(allResources()).passed).toBe(true)
@@ -141,8 +175,18 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Service>({
       apiVersion: 'v1',
       kind: 'Service',
-      metadata: { uid: '', name: 'web-nodeport', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
-      spec: { type: 'NodePort', selector: { app: 'web' }, ports: [{ port: 80, targetPort: 80, nodePort: 30080 }] },
+      metadata: {
+        uid: '',
+        name: 'web-nodeport',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
+      spec: {
+        type: 'NodePort',
+        selector: { app: 'web' },
+        ports: [{ port: 80, targetPort: 80, nodePort: 30080 }],
+      },
       status: { clusterIP: '10.96.0.11' },
     })
     expect(lab.check(allResources()).passed).toBe(true)
@@ -154,7 +198,13 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<ConfigMap>({
       apiVersion: 'v1',
       kind: 'ConfigMap',
-      metadata: { uid: '', name: 'app-config', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'app-config',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       data: { LOG_LEVEL: 'info' },
     })
     expect(lab.check(allResources()).passed).toBe(true)
@@ -166,7 +216,13 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Secret>({
       apiVersion: 'v1',
       kind: 'Secret',
-      metadata: { uid: '', name: 'db-secret', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'db-secret',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       type: 'Opaque',
       data: { password: 'cGFzc3dvcmQxMjM=' },
     })
@@ -186,7 +242,13 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<PersistentVolumeClaim>({
       apiVersion: 'v1',
       kind: 'PersistentVolumeClaim',
-      metadata: { uid: '', name: 'data-pvc', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'data-pvc',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: { accessModes: ['ReadWriteOnce'], storageRequest: '1Gi' },
       status: { phase: 'Pending' },
     })
@@ -199,7 +261,13 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Pod>({
       apiVersion: 'v1',
       kind: 'Pod',
-      metadata: { uid: '', name: 'probe-demo', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'probe-demo',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
         containers: [
           {
@@ -221,13 +289,22 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Pod>({
       apiVersion: 'v1',
       kind: 'Pod',
-      metadata: { uid: '', name: 'resource-demo', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'resource-demo',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
         containers: [
           {
             name: 'app',
             image: 'nginx:1.27',
-            resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } },
+            resources: {
+              requests: { cpu: '250m', memory: '256Mi' },
+              limits: { cpu: '500m', memory: '512Mi' },
+            },
           },
         ],
       },
@@ -241,14 +318,25 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     lab.initialSetup()
     updateResource<Node>('Node', 'node-1', undefined, (current) => ({
       ...current,
-      spec: { ...current.spec, taints: [{ key: 'dedicated', value: 'gpu', effect: 'NoSchedule' }] },
+      spec: {
+        ...current.spec,
+        taints: [{ key: 'dedicated', value: 'gpu', effect: 'NoSchedule' }],
+      },
     }))
     createResource<Pod>({
       apiVersion: 'v1',
       kind: 'Pod',
-      metadata: { uid: '', name: 'gpu-workload', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'gpu-workload',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
-        tolerations: [{ key: 'dedicated', operator: 'Equal', value: 'gpu', effect: 'NoSchedule' }],
+        tolerations: [
+          { key: 'dedicated', operator: 'Equal', value: 'gpu', effect: 'NoSchedule' },
+        ],
         containers: [{ name: 'app', image: 'nginx:1.27' }],
       },
       status: { phase: 'Pending', containerStatuses: [] },
@@ -262,16 +350,31 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     lab.initialSetup()
     updateResource<Node>('Node', 'node-1', undefined, (current) => ({
       ...current,
-      metadata: { ...current.metadata, labels: { ...current.metadata.labels, zone: 'zone-a' } },
+      metadata: {
+        ...current.metadata,
+        labels: { ...current.metadata.labels, zone: 'zone-a' },
+      },
     }))
     createResource<Pod>({
       apiVersion: 'v1',
       kind: 'Pod',
-      metadata: { uid: '', name: 'affinity-demo', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'affinity-demo',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
         nodeAffinity: {
           requiredDuringSchedulingIgnoredDuringExecution: {
-            nodeSelectorTerms: [{ matchExpressions: [{ key: 'zone', operator: 'In', values: ['zone-a', 'zone-b'] }] }],
+            nodeSelectorTerms: [
+              {
+                matchExpressions: [
+                  { key: 'zone', operator: 'In', values: ['zone-a', 'zone-b'] },
+                ],
+              },
+            ],
           },
         },
         containers: [{ name: 'app', image: 'nginx:1.27' }],
@@ -290,7 +393,10 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
       ...current,
       spec: {
         ...current.spec,
-        template: { ...current.spec.template, spec: { containers: [{ name: 'web', image: 'nginx:1.28' }] } },
+        template: {
+          ...current.spec.template,
+          spec: { containers: [{ name: 'web', image: 'nginx:1.28' }] },
+        },
       },
     }))
     await settle(KUBELET_RUNNING_DELAY_MS * 3 + 50)
@@ -322,7 +428,13 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Pod>({
       apiVersion: 'v1',
       kind: 'Pod',
-      metadata: { uid: '', name: 'crash-pod', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'crash-pod',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: { containers: [{ name: 'app', image: 'nginx:1.27' }] },
       status: { phase: 'Pending', containerStatuses: [] },
     })
@@ -340,7 +452,13 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<Pod>({
       apiVersion: 'v1',
       kind: 'Pod',
-      metadata: { uid: '', name: 'broken-image', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'broken-image',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: { containers: [{ name: 'app', image: 'nginx:1.27' }] },
       status: { phase: 'Pending', containerStatuses: [] },
     })
@@ -393,13 +511,25 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<ConfigMap>({
       apiVersion: 'v1',
       kind: 'ConfigMap',
-      metadata: { uid: '', name: 'final-app-config', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'final-app-config',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       data: { GREETING: 'hello-k8s' },
     })
     createResource<Deployment>({
       apiVersion: 'apps/v1',
       kind: 'Deployment',
-      metadata: { uid: '', name: 'final-app', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'final-app',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
         replicas: 2,
         selector: { matchLabels: { app: 'final-app' } },
@@ -410,20 +540,41 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
               {
                 name: 'web',
                 image: 'nginx:1.27',
-                env: [{ name: 'GREETING', valueFromConfigMap: { name: 'final-app-config', key: 'GREETING' } }],
+                env: [
+                  {
+                    name: 'GREETING',
+                    valueFromConfigMap: { name: 'final-app-config', key: 'GREETING' },
+                  },
+                ],
               },
             ],
           },
         },
       },
-      status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+      status: {
+        replicas: 0,
+        readyReplicas: 0,
+        availableReplicas: 0,
+        updatedReplicas: 0,
+        condition: 'Progressing',
+      },
     })
     await settle()
     createResource<Service>({
       apiVersion: 'v1',
       kind: 'Service',
-      metadata: { uid: '', name: 'final-app-svc', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
-      spec: { type: 'ClusterIP', selector: { app: 'final-app' }, ports: [{ port: 80, targetPort: 80 }] },
+      metadata: {
+        uid: '',
+        name: 'final-app-svc',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
+      spec: {
+        type: 'ClusterIP',
+        selector: { app: 'final-app' },
+        ports: [{ port: 80, targetPort: 80 }],
+      },
       status: { clusterIP: '10.96.0.20' },
     })
     expect(lab.check(allResources()).passed).toBe(true)
@@ -435,7 +586,13 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<DaemonSet>({
       apiVersion: 'apps/v1',
       kind: 'DaemonSet',
-      metadata: { uid: '', name: 'fluent-bit', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'fluent-bit',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
         selector: { matchLabels: { app: 'fluent-bit' } },
         template: {
@@ -461,13 +618,25 @@ describe('实验自动检查 - 完成正确操作后应该通过', () => {
     createResource<HorizontalPodAutoscaler>({
       apiVersion: 'autoscaling/v2',
       kind: 'HorizontalPodAutoscaler',
-      metadata: { uid: '', name: 'web-hpa', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+      metadata: {
+        uid: '',
+        name: 'web-hpa',
+        namespace: 'default',
+        resourceVersion: '',
+        creationTimestamp: '',
+      },
       spec: {
         scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'web' },
         minReplicas: 2,
         maxReplicas: 6,
         metrics: [
-          { type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 50 } } },
+          {
+            type: 'Resource',
+            resource: {
+              name: 'cpu',
+              target: { type: 'Utilization', averageUtilization: 50 },
+            },
+          },
         ],
       },
       status: { currentReplicas: 0, desiredReplicas: 0 },

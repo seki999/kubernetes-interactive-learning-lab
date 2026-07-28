@@ -283,7 +283,8 @@ spec:
       instruction: `应用上面的 YAML，或在 YAML 实验室里创建一个名为 nginx-demo 的 Pod`,
       verify: (resources) =>
         resources.some(
-          (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'nginx-demo'
+          (resource): resource is Pod =>
+            resource.kind === 'Pod' && resource.metadata.name === 'nginx-demo'
         ),
     },
     quiz: [
@@ -536,7 +537,9 @@ spec:
         explanation: `Ingress 是七层（HTTP/HTTPS）路由规则，通常搭配 Ingress Controller 一起工作。`,
       },
     ],
-    commonMistakes: [`把 Ingress 当作可以直接替代所有 Service 的东西——它依赖 Service 才能工作，二者不是互斥关系`],
+    commonMistakes: [
+      `把 Ingress 当作可以直接替代所有 Service 的东西——它依赖 Service 才能工作，二者不是互斥关系`,
+    ],
     summary: `Ingress 是集群的"HTTP 网关"，按域名/路径路由到不同 Service。
 本模拟器暂未实现该资源类型，这里先建立概念基础。`,
   },
@@ -653,7 +656,9 @@ data:
         explanation: `保护 Secret 的关键在于 RBAC 权限控制和传输加密，而不是 Base64 本身。`,
       },
     ],
-    commonMistakes: [`误以为 Secret 天然安全，从而把它当作唯一的安全防线，忽视 RBAC 权限控制`],
+    commonMistakes: [
+      `误以为 Secret 天然安全，从而把它当作唯一的安全防线，忽视 RBAC 权限控制`,
+    ],
     summary: `Secret 用于存放敏感数据，界面上应始终脱敏展示。真正的安全性来自
 传输加密和访问权限控制（见后续 RBAC 课程），而不是编码本身。`,
   },
@@ -857,8 +862,7 @@ spec:
 新增 Node 时自动补齐，Node 被移除时自动清理，不需要指定 replicas 数量。
 典型场景是日志采集 Agent、监控 Agent、网络插件（CNI）等"每台机器都要跑一份"
 的基础设施型组件。`,
-      `诚实说明：本模拟器当前版本尚未实现 DaemonSet 资源类型和"每节点一份"的
-调度逻辑，这一课先讲解概念，暂不支持在虚拟集群里创建 DaemonSet 进行练习。`,
+      `注：本模拟器现已实现 DaemonSet 资源类型。修改资源会触发滚动更新。`,
     ],
     diagram: [
       { label: `DaemonSet`, description: `不设置 replicas` },
@@ -899,7 +903,9 @@ spec:
         explanation: `DaemonSet 的语义就是"每个节点一份"，不需要人为指定数量。`,
       },
     ],
-    commonMistakes: [`把日志采集这类基础设施组件用 Deployment 部署，导致某些节点没有采集 Agent`],
+    commonMistakes: [
+      `把日志采集这类基础设施组件用 Deployment 部署，导致某些节点没有采集 Agent`,
+    ],
     summary: `DaemonSet 适合"每台机器都要跑一份"的基础设施型工作负载。
 本模拟器暂未实现该资源类型。`,
   },
@@ -947,12 +953,19 @@ spec:
     quiz: [
       {
         question: `CronJob 的 schedule: "0 2 * * *" 表示什么？`,
-        options: [`每小时执行一次`, `每天凌晨 2 点执行一次`, `每周执行一次`, `每 2 分钟执行一次`],
+        options: [
+          `每小时执行一次`,
+          `每天凌晨 2 点执行一次`,
+          `每周执行一次`,
+          `每 2 分钟执行一次`,
+        ],
         correctIndex: 1,
         explanation: `cron 表达式的五个字段依次是：分 时 日 月 星期，"0 2 * * *" 就是每天 2:00。`,
       },
     ],
-    commonMistakes: [`把长期运行的服务错误地用 Job 部署，导致任务"完成"后容器退出、服务下线`],
+    commonMistakes: [
+      `把长期运行的服务错误地用 Job 部署，导致任务"完成"后容器退出、服务下线`,
+    ],
     summary: `Job 处理一次性任务，CronJob 在此基础上加上时间调度。
 本模拟器暂未实现这两种资源类型。`,
   },
@@ -985,7 +998,11 @@ Kubernetes（在本模拟器里由 PVC/PV 绑定控制器负责）会在集群�
       `应用 PVC YAML，观察它的状态从 Pending 变为 Bound`,
       `执行 kubectl describe pvc data-pvc 确认 volumeName 字段已经填上`,
     ],
-    commandExamples: [`kubectl get pv`, `kubectl get pvc`, `kubectl describe pvc data-pvc`],
+    commandExamples: [
+      `kubectl get pv`,
+      `kubectl get pvc`,
+      `kubectl describe pvc data-pvc`,
+    ],
     yamlExample: `apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -1059,7 +1076,11 @@ requests 之和来判断剩余容量，如果新 Pod 的 requests 超过所有 N
       `尝试把 requests.memory 改成一个超过所有 Node 剩余容量的值，观察 Pod 停留在 Pending`,
       `执行 kubectl describe pod 查看资源不足的具体原因说明`,
     ],
-    commandExamples: [`kubectl top pod`, `kubectl top node`, `kubectl describe pod resource-demo`],
+    commandExamples: [
+      `kubectl top pod`,
+      `kubectl top node`,
+      `kubectl describe pod resource-demo`,
+    ],
     yamlExample: `apiVersion: v1
 kind: Pod
 metadata:
@@ -1083,7 +1104,9 @@ spec:
           (resource): resource is Pod =>
             resource.kind === 'Pod' &&
             resource.metadata.name === 'resource-demo' &&
-            resource.spec.containers.some((container) => Boolean(container.resources?.requests?.cpu))
+            resource.spec.containers.some((container: any) =>
+              Boolean(container.resources?.requests?.cpu)
+            )
         ),
     },
     quiz: [
@@ -1149,7 +1172,9 @@ spec:
           (resource): resource is Pod =>
             resource.kind === 'Pod' &&
             resource.metadata.name === 'probe-demo' &&
-            resource.spec.containers.some((container) => Boolean(container.readinessProbe))
+            resource.spec.containers.some((container: any) =>
+              Boolean(container.readinessProbe)
+            )
         ),
     },
     quiz: [
@@ -1165,7 +1190,9 @@ spec:
         explanation: `就绪探针只影响"是否接收流量"，存活探针才会触发重启。`,
       },
     ],
-    commonMistakes: [`把 livenessProbe 和 readinessProbe 的用途搞反，导致慢启动应用被频繁误杀`],
+    commonMistakes: [
+      `把 livenessProbe 和 readinessProbe 的用途搞反，导致慢启动应用被频繁误杀`,
+    ],
     summary: `三种探针分工明确：startupProbe 保护慢启动、readinessProbe 控制流量准入、
 livenessProbe 负责发现并重启真正卡死的容器。`,
   },
@@ -1198,7 +1225,10 @@ disktype: ssd），Pod 的 spec.nodeSelector 指定同样的键值对，Schedule
       `应用下面的 YAML，指定 nodeSelector: disktype: ssd`,
       `观察这个 Pod 是否被调度到打了标签的 node-1`,
     ],
-    commandExamples: [`kubectl label node node-1 disktype=ssd`, `kubectl get pods -o wide`],
+    commandExamples: [
+      `kubectl label node node-1 disktype=ssd`,
+      `kubectl get pods -o wide`,
+    ],
     yamlExample: `apiVersion: v1
 kind: Pod
 metadata:
@@ -1213,9 +1243,13 @@ spec:
     verification: {
       instruction: `给某个 Node 打上 disktype=ssd 标签，再创建一个 nodeSelector 为 disktype: ssd 的 Pod，确认它被调度到了该节点`,
       verify: (resources) => {
-        const nodes = resources.filter((resource): resource is Node => resource.kind === 'Node')
+        const nodes = resources.filter(
+          (resource): resource is Node => resource.kind === 'Node'
+        )
         const ssdNodeNames = new Set(
-          nodes.filter((node) => node.metadata.labels?.disktype === 'ssd').map((node) => node.metadata.name)
+          nodes
+            .filter((node) => node.metadata.labels?.disktype === 'ssd')
+            .map((node) => node.metadata.name)
         )
         if (ssdNodeNames.size === 0) return false
         return resources.some(
@@ -1272,7 +1306,10 @@ NoExecute（不但不会被调度过去，已经在运行的不匹配 Pod 也会
       `创建一个没有 Toleration 的普通 Pod，观察它是否会被调度到 node-1`,
       `应用下面的 YAML（带有匹配的 Toleration），观察它成功调度到 node-1`,
     ],
-    commandExamples: [`kubectl taint node node-1 dedicated=gpu:NoSchedule`, `kubectl describe node node-1`],
+    commandExamples: [
+      `kubectl taint node node-1 dedicated=gpu:NoSchedule`,
+      `kubectl describe node node-1`,
+    ],
     yamlExample: `apiVersion: v1
 kind: Pod
 metadata:
@@ -1310,7 +1347,9 @@ spec:
         explanation: `NoExecute 的"驱逐正在运行的 Pod"效果比 NoSchedule 更强烈，使用时要更谨慎。`,
       },
     ],
-    commonMistakes: [`Toleration 的 key/value/effect 和 Node 上的 Taint 没有完全对应，导致仍然无法调度`],
+    commonMistakes: [
+      `Toleration 的 key/value/effect 和 Node 上的 Taint 没有完全对应，导致仍然无法调度`,
+    ],
     summary: `Taint/Toleration 让节点具备"选择性排斥"能力，常用于专用节点池
 （如 GPU 节点）只允许特定负载调度过去。`,
   },
@@ -1334,7 +1373,10 @@ DoesNotExist 等操作符，可以表达"标签值在某个集合里"这样比�
     ],
     diagram: [
       { label: `Node Affinity`, description: `Pod 挑选符合表达式的 Node（已支持）` },
-      { label: `Pod Anti-Affinity`, description: `让同一应用的副本分散到不同 Node（尚未实现）` },
+      {
+        label: `Pod Anti-Affinity`,
+        description: `让同一应用的副本分散到不同 Node（尚未实现）`,
+      },
     ],
     steps: [
       `应用下面的 YAML，使用 nodeAffinity 的 In 操作符`,
@@ -1375,7 +1417,9 @@ spec:
         explanation: `Node Affinity（针对 Node 标签的约束）已实现；Pod 之间的 Affinity/Anti-Affinity 尚未实现。`,
       },
     ],
-    commonMistakes: [`把 Node Affinity 和 Pod Anti-Affinity 的适用场景搞混——前者约束"Pod 选哪类节点"，后者约束"Pod 之间如何分布"`],
+    commonMistakes: [
+      `把 Node Affinity 和 Pod Anti-Affinity 的适用场景搞混——前者约束"Pod 选哪类节点"，后者约束"Pod 之间如何分布"`,
+    ],
     summary: `Node Affinity 是 nodeSelector 的加强版，本模拟器已支持；
 Pod Affinity/Anti-Affinity 涉及"Pod 之间"的调度关系，暂未实现。`,
   },
@@ -1399,7 +1443,10 @@ Pod Affinity/Anti-Affinity 涉及"Pod 之间"的调度关系，暂未实现。`,
 Kubernetes 一致但时间被压缩到几秒到几十秒，方便在课堂上实际观察到效果。`,
     ],
     diagram: [
-      { label: `Metrics Simulator`, description: `用户在负载模拟面板里设置 CPU/内存使用率` },
+      {
+        label: `Metrics Simulator`,
+        description: `用户在负载模拟面板里设置 CPU/内存使用率`,
+      },
       { label: `HPA`, description: `对比目标值，计算推荐副本数` },
       { label: `Deployment`, description: `副本数被自动调整` },
     ],
@@ -1477,7 +1524,10 @@ kubectl drain 相关的中断预算保护逻辑也未模拟，这一课先讲解
       { label: `kubectl drain`, description: `尝试驱逐节点上的 Pod` },
       { label: `结果`, description: `驱逐会被限速，保证可用副本不低于 2` },
     ],
-    steps: [`阅读下面的 PDB YAML 示例`, `思考：为什么 PDB 只能限制"自愿中断"，无法防止节点突然宕机`],
+    steps: [
+      `阅读下面的 PDB YAML 示例`,
+      `思考：为什么 PDB 只能限制"自愿中断"，无法防止节点突然宕机`,
+    ],
     commandExamples: [`kubectl get pdb`, `kubectl describe pdb web-pdb`],
     yamlExample: `apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -1491,7 +1541,12 @@ spec:
     quiz: [
       {
         question: `PDB 主要保护应用免受什么类型的中断？`,
-        options: [`节点突然断电`, `自愿中断，例如运维人员主动执行 kubectl drain`, `应用自身 Bug 导致崩溃`, `网络故障`],
+        options: [
+          `节点突然断电`,
+          `自愿中断，例如运维人员主动执行 kubectl drain`,
+          `应用自身 Bug 导致崩溃`,
+          `网络故障`,
+        ],
         correctIndex: 1,
         explanation: `PDB 只能约束"主动发起的、可以被限速"的中断操作，无法阻止真正的意外故障。`,
       },
@@ -1596,7 +1651,10 @@ Namespace 都有一个默认的 ServiceAccount，也可以创建专用的 Servic
       { label: `ServiceAccount`, description: `Pod 专用身份` },
       { label: `RoleBinding`, description: `赋予这个身份具体权限` },
     ],
-    steps: [`阅读下面的 ServiceAccount YAML 示例`, `思考：为什么容器化应用不应该直接使用管理员账号调用 API`],
+    steps: [
+      `阅读下面的 ServiceAccount YAML 示例`,
+      `思考：为什么容器化应用不应该直接使用管理员账号调用 API`,
+    ],
     commandExamples: [`kubectl get serviceaccounts`],
     yamlExample: `apiVersion: v1
 kind: ServiceAccount
@@ -1616,7 +1674,9 @@ metadata:
         explanation: `ServiceAccount 是"给程序用"的身份，人类用户通常使用 User/Group 身份体系。`,
       },
     ],
-    commonMistakes: [`让所有 Pod 共用 default ServiceAccount 并赋予过高权限，违反最小权限原则`],
+    commonMistakes: [
+      `让所有 Pod 共用 default ServiceAccount 并赋予过高权限，违反最小权限原则`,
+    ],
     summary: `ServiceAccount 是 Pod 专用的身份体系，配合 RBAC 才能实现精确的
 最小权限控制。本模拟器暂未实现该资源类型。`,
   },
@@ -1644,7 +1704,10 @@ podSelector 圈定一组 Pod，再用 ingress/egress 规则声明"只允许哪�
       { label: `允许的来源`, description: `规则里明确放行` },
       { label: `其它 Pod`, description: `默认被拒绝` },
     ],
-    steps: [`阅读下面的 NetworkPolicy YAML 示例`, `思考："默认拒绝"策略对已有应用的影响，为什么上线前需要谨慎测试`],
+    steps: [
+      `阅读下面的 NetworkPolicy YAML 示例`,
+      `思考："默认拒绝"策略对已有应用的影响，为什么上线前需要谨慎测试`,
+    ],
     commandExamples: [`kubectl get networkpolicies`],
     yamlExample: `apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -1662,7 +1725,12 @@ spec:
     quiz: [
       {
         question: `一个 Pod 没有被任何 NetworkPolicy 的 podSelector 选中时，它的网络访问规则是？`,
-        options: [`默认拒绝所有访问`, `默认允许所有访问（NetworkPolicy 的默认放行模型）`, `无法确定`, `只允许同 Namespace 访问`],
+        options: [
+          `默认拒绝所有访问`,
+          `默认允许所有访问（NetworkPolicy 的默认放行模型）`,
+          `无法确定`,
+          `只允许同 Namespace 访问`,
+        ],
         correctIndex: 1,
         explanation: `只有被至少一条 NetworkPolicy 选中的 Pod，才会从"默认放行"切换为"默认拒绝，仅放行规则允许的流量"。`,
       },
@@ -1712,19 +1780,26 @@ maxSurge/maxUnavailable（支持整数和百分比）逐批扩新缩旧。旧 Re
       instruction: `把 web Deployment 的容器镜像修改为 nginx:1.28 并应用，等待所有 Pod 变为 Running`,
       verify: (resources) => {
         const deployment = resources.find(
-          (resource): resource is Deployment => resource.kind === 'Deployment' && resource.metadata.name === 'web'
+          (resource): resource is Deployment =>
+            resource.kind === 'Deployment' && resource.metadata.name === 'web'
         )
         if (!deployment) return false
         const usesNewImage = deployment.spec.template.spec.containers.some(
-          (container) => container.image === 'nginx:1.28'
+          (container: any) => container.image === 'nginx:1.28'
         )
         const pods = resources.filter(
           (resource): resource is Pod =>
             resource.kind === 'Pod' &&
             resource.metadata.namespace === deployment.metadata.namespace &&
-            resource.spec.containers.some((container) => container.image === 'nginx:1.28')
+            resource.spec.containers.some(
+              (container: any) => container.image === 'nginx:1.28'
+            )
         )
-        return usesNewImage && pods.length > 0 && pods.every((pod) => pod.status.phase === 'Running')
+        return (
+          usesNewImage &&
+          pods.length > 0 &&
+          pods.every((pod) => pod.status.phase === 'Running')
+        )
       },
     },
     quiz: [
@@ -1740,7 +1815,9 @@ maxSurge/maxUnavailable（支持整数和百分比）逐批扩新缩旧。旧 Re
         explanation: `maxSurge 控制滚动更新期间可临时超过期望副本数的上限。`,
       },
     ],
-    commonMistakes: [`把 maxSurge 和 maxUnavailable 混淆，导致更新期间容量或可用性不符合预期`],
+    commonMistakes: [
+      `把 maxSurge 和 maxUnavailable 混淆，导致更新期间容量或可用性不符合预期`,
+    ],
     summary: `滚动更新通过新旧 ReplicaSet 共存、逐批替换来保持服务可用；Revision
 历史使 status、history、undo 和 restart 形成完整的发布管理闭环。`,
   },
@@ -1773,7 +1850,11 @@ maxSurge/maxUnavailable（支持整数和百分比）逐批扩新缩旧。旧 Re
       `执行 kubectl get pods 观察它停留在 Pending`,
       `执行 kubectl describe pod 查看 Events 里的中文失败原因`,
     ],
-    commandExamples: [`kubectl get pods`, `kubectl describe pod`, `kubectl logs <pod-name>`],
+    commandExamples: [
+      `kubectl get pods`,
+      `kubectl describe pod`,
+      `kubectl logs <pod-name>`,
+    ],
     quiz: [
       {
         question: `排查一个 Pod 无法正常运行的问题，推荐的第一步是？`,
@@ -1854,7 +1935,9 @@ spec:
         explanation: `OOM = Out Of Memory，是内存 limit 被突破触发的强制终止。`,
       },
     ],
-    commonMistakes: [`看到 CrashLoopBackOff 就立刻调大资源限制，而不先看日志确认是不是内存问题导致的`],
+    commonMistakes: [
+      `看到 CrashLoopBackOff 就立刻调大资源限制，而不先看日志确认是不是内存问题导致的`,
+    ],
     summary: `每种异常状态都对应相对明确的根因排查方向。"故障实验室"提供了
 安全的环境来主动体验和修复这些状态，建议逐一动手尝试。`,
   },
@@ -2035,8 +2118,10 @@ spec:
             resource.kind === 'Deployment' && resource.metadata.name === 'final-app'
         )
         const usesConfigMap = Boolean(
-          deployment?.spec.template.spec.containers.some((container) =>
-            container.env?.some((env) => env.valueFromConfigMap?.name === 'final-app-config')
+          deployment?.spec.template.spec.containers.some((container: any) =>
+            container.env?.some(
+              (env: any) => env.valueFromConfigMap?.name === 'final-app-config'
+            )
           )
         )
         const hasService = resources.some(
@@ -2061,7 +2146,9 @@ spec:
         explanation: `先准备好被依赖的资源，再创建依赖它的资源，是比较自然、不容易出错的顺序。`,
       },
     ],
-    commonMistakes: [`Deployment 引用了一个还不存在的 ConfigMap 名字，导致环境变量注入失败`],
+    commonMistakes: [
+      `Deployment 引用了一个还不存在的 ConfigMap 名字，导致环境变量注入失败`,
+    ],
     summary: `综合实战把前面学到的资源类型串联成一个完整应用架构。完成这一课后，
 建议继续挑战"实验任务"里更完整的故障排查和自动扩缩容场景。`,
   },
@@ -2069,7 +2156,10 @@ spec:
     id: 'job-batch-processing',
     index: 31,
     title: `Job：可靠地完成一次性任务`,
-    objectives: [`理解 completions、parallelism 和 backoffLimit`, `观察 Job Pod 成功、失败和重试`],
+    objectives: [
+      `理解 completions、parallelism 和 backoffLimit`,
+      `观察 Job Pod 成功、失败和重试`,
+    ],
     concept: [
       `Job 用于数据库迁移、报表生成、批量转换等“完成后退出”的任务。它通过 Pod 执行工作，并持续统计 active、succeeded 和 failed。`,
       `completions 决定需要多少次成功，parallelism 控制同时运行多少个 Pod，backoffLimit 限制失败后的重试次数。`,
@@ -2079,8 +2169,17 @@ spec:
       { label: `Job Controller`, description: `创建、补足工作 Pod` },
       { label: `Pod`, description: `Succeeded 或 Failed` },
     ],
-    steps: [`应用 Job YAML`, `使用 kubectl get jobs 观察状态`, `查看 Pod 与 Events`, `使用 kubectl logs job/batch-report 查看日志`],
-    commandExamples: [`kubectl create job quick-task --image=busybox:1.36`, `kubectl describe job quick-task`, `kubectl logs job/quick-task`],
+    steps: [
+      `应用 Job YAML`,
+      `使用 kubectl get jobs 观察状态`,
+      `查看 Pod 与 Events`,
+      `使用 kubectl logs job/batch-report 查看日志`,
+    ],
+    commandExamples: [
+      `kubectl create job quick-task --image=busybox:1.36`,
+      `kubectl describe job quick-task`,
+      `kubectl logs job/quick-task`,
+    ],
     yamlExample: `apiVersion: batch/v1
 kind: Job
 metadata:
@@ -2104,12 +2203,14 @@ spec:
             resource.status.condition === 'Complete'
         ),
     },
-    quiz: [{
-      question: `哪个字段限制 Job 同时运行的 Pod 数量？`,
-      options: [`completions`, `parallelism`, `backoffLimit`, `schedule`],
-      correctIndex: 1,
-      explanation: `parallelism 是并行上限，completions 是成功目标数。`,
-    }],
+    quiz: [
+      {
+        question: `哪个字段限制 Job 同时运行的 Pod 数量？`,
+        options: [`completions`, `parallelism`, `backoffLimit`, `schedule`],
+        correctIndex: 1,
+        explanation: `parallelism 是并行上限，completions 是成功目标数。`,
+      },
+    ],
     commonMistakes: [`把 Job Pod 当成长时间运行的服务，期待它一直保持 Running`],
     summary: `Job 用控制器保证一次性工作最终完成，并把失败重试变成声明式行为。`,
   },
@@ -2117,7 +2218,11 @@ spec:
     id: 'cronjob-scheduling',
     index: 32,
     title: `CronJob：定时创建 Job`,
-    objectives: [`理解 schedule 与 suspend`, `理解 Allow、Forbid、Replace 并发策略`, `使用模拟时间和手动触发`],
+    objectives: [
+      `理解 schedule 与 suspend`,
+      `理解 Allow、Forbid、Replace 并发策略`,
+      `使用模拟时间和手动触发`,
+    ],
     concept: [
       `CronJob 是 Job 的计划生成器。到达 schedule 指定时间时，它创建一个 Job，再由 Job Controller 管理实际 Pod。`,
       `本实验室提供可控模拟时间，支持五段式 Cron 的星号、间隔步长和具体数字；不模拟完整 Cron 语法和时区系统。`,
@@ -2127,8 +2232,17 @@ spec:
       { label: `Job`, description: `每次触发创建一份` },
       { label: `Pod`, description: `执行批处理` },
     ],
-    steps: [`创建 CronJob`, `在详情页推进 5 分钟`, `观察新 Job`, `切换 concurrencyPolicy 比较行为`],
-    commandExamples: [`kubectl get cronjobs`, `kubectl create job run-now --from=cronjob/report`, `kubectl describe cronjob report`],
+    steps: [
+      `创建 CronJob`,
+      `在详情页推进 5 分钟`,
+      `观察新 Job`,
+      `切换 concurrencyPolicy 比较行为`,
+    ],
+    commandExamples: [
+      `kubectl get cronjobs`,
+      `kubectl create job run-now --from=cronjob/report`,
+      `kubectl describe cronjob report`,
+    ],
     yamlExample: `apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -2153,13 +2267,17 @@ spec:
             resource.kind === 'CronJob' && resource.metadata.name === 'report'
         ),
     },
-    quiz: [{
-      question: `concurrencyPolicy=Forbid 的含义是？`,
-      options: [`删除旧 Job`, `已有 Job 运行时跳过新触发`, `始终并行`, `暂停 CronJob`],
-      correctIndex: 1,
-      explanation: `Forbid 不允许同一个 CronJob 的多个 Job 重叠运行。`,
-    }],
-    commonMistakes: [`误以为 CronJob 自己直接运行容器；实际是 CronJob 创建 Job，Job 再创建 Pod`],
+    quiz: [
+      {
+        question: `concurrencyPolicy=Forbid 的含义是？`,
+        options: [`删除旧 Job`, `已有 Job 运行时跳过新触发`, `始终并行`, `暂停 CronJob`],
+        correctIndex: 1,
+        explanation: `Forbid 不允许同一个 CronJob 的多个 Job 重叠运行。`,
+      },
+    ],
+    commonMistakes: [
+      `误以为 CronJob 自己直接运行容器；实际是 CronJob 创建 Job，Job 再创建 Pod`,
+    ],
     summary: `CronJob 把时间计划、并发控制和历史保留叠加在 Job 之上。`,
   },
 ]

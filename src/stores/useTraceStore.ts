@@ -73,9 +73,7 @@ export const useTraceStore = create<TraceState>()(
               ? {
                   ...trace,
                   status:
-                    trace.status === 'failed' && status === 'success'
-                      ? 'failed'
-                      : status,
+                    trace.status === 'failed' && status === 'success' ? 'failed' : status,
                   finishedAt: Date.now(),
                 }
               : trace

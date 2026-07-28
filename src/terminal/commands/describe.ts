@@ -185,7 +185,9 @@ function describeDaemonSet(daemonSet: DaemonSet): string[] {
 
 function describeHpa(hpa: HorizontalPodAutoscaler): string[] {
   const cpuMetric = hpa.spec.metrics.find((metric) => metric.resource.name === 'cpu')
-  const memoryMetric = hpa.spec.metrics.find((metric) => metric.resource.name === 'memory')
+  const memoryMetric = hpa.spec.metrics.find(
+    (metric) => metric.resource.name === 'memory'
+  )
   const lines = [
     `Name:               ${hpa.metadata.name}`,
     `Namespace:          ${hpa.metadata.namespace ?? '-'}`,
@@ -208,7 +210,14 @@ function describeHpa(hpa: HorizontalPodAutoscaler): string[] {
   if (hpa.status.message) {
     lines.push(`Message:            ${hpa.status.message}`)
   }
-  lines.push('', ...describeEvents('HorizontalPodAutoscaler', hpa.metadata.name, hpa.metadata.namespace))
+  lines.push(
+    '',
+    ...describeEvents(
+      'HorizontalPodAutoscaler',
+      hpa.metadata.name,
+      hpa.metadata.namespace
+    )
+  )
   return lines
 }
 

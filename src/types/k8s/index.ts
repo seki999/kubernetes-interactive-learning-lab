@@ -10,6 +10,7 @@ import type { PersistentVolumeClaim, PersistentVolume } from './pvc'
 import type { Job, CronJob } from './job'
 import type { DaemonSet } from './daemonset'
 import type { HorizontalPodAutoscaler } from './hpa'
+import type { StatefulSet } from './statefulset'
 
 export * from './meta'
 export * from './pod'
@@ -25,6 +26,7 @@ export * from './event'
 export * from './job'
 export * from './daemonset'
 export * from './hpa'
+export * from './statefulset'
 
 /**
  * 当前虚拟集群支持的资源种类。
@@ -50,11 +52,13 @@ export type ResourceKind =
   | 'CronJob'
   | 'DaemonSet'
   | 'HorizontalPodAutoscaler'
+  | 'StatefulSet'
 
 export type KubernetesResource =
   | Pod
   | Deployment
   | ReplicaSet
+  | StatefulSet
   | Service
   | Endpoints
   | Node
@@ -83,6 +87,7 @@ export const ALL_RESOURCE_KINDS: ResourceKind[] = [
   'Pod',
   'Deployment',
   'ReplicaSet',
+  'StatefulSet',
   'Service',
   'Endpoints',
   'Node',

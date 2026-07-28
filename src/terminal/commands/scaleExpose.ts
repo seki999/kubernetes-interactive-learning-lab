@@ -127,9 +127,11 @@ export function runSetImage(argv: string[]): CommandOutput {
       `Error from server (NotFound): deployments.apps "${target.name}" not found`,
     ])
   }
-  if (!deployment.spec.template.spec.containers.some(
-    (container) => container.name === containerName
-  )) {
+  if (
+    !deployment.spec.template.spec.containers.some(
+      (container) => container.name === containerName
+    )
+  ) {
     return fail([`error: unable to find container named "${containerName}"`])
   }
 
@@ -140,8 +142,7 @@ export function runSetImage(argv: string[]): CommandOutput {
         ...current.metadata,
         annotations: {
           ...current.metadata.annotations,
-          [CHANGE_CAUSE_ANNOTATION]:
-            `kubectl set image ${containerName}=${image}`,
+          [CHANGE_CAUSE_ANNOTATION]: `kubectl set image ${containerName}=${image}`,
         },
       },
       spec: {

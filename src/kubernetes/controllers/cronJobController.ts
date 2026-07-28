@@ -13,7 +13,8 @@ import type { CronJob, Job } from '@/types/k8s'
 function ownedJobs(cronJob: CronJob): Job[] {
   return listResources<Job>('Job', cronJob.metadata.namespace).filter((job) =>
     job.metadata.ownerReferences?.some(
-      (reference) => reference.kind === 'CronJob' && reference.uid === cronJob.metadata.uid
+      (reference) =>
+        reference.kind === 'CronJob' && reference.uid === cronJob.metadata.uid
     )
   )
 }
@@ -161,10 +162,14 @@ export function reconcileCronJobHistory(
   const jobs = ownedJobs(cronJob)
   const successful = jobs
     .filter((job) => job.status.condition === 'Complete')
-    .sort((a, b) => b.metadata.creationTimestamp.localeCompare(a.metadata.creationTimestamp))
+    .sort((a, b) =>
+      b.metadata.creationTimestamp.localeCompare(a.metadata.creationTimestamp)
+    )
   const failed = jobs
     .filter((job) => job.status.condition === 'Failed')
-    .sort((a, b) => b.metadata.creationTimestamp.localeCompare(a.metadata.creationTimestamp))
+    .sort((a, b) =>
+      b.metadata.creationTimestamp.localeCompare(a.metadata.creationTimestamp)
+    )
   successful
     .slice(cronJob.spec.successfulJobsHistoryLimit ?? 3)
     .forEach((job) => deleteResource('Job', job.metadata.name, namespace))
@@ -177,7 +182,9 @@ export function reconcileCronJobHistory(
     .map((job) => job.metadata.name)
   const latestSuccess = remaining
     .filter((job) => job.status.condition === 'Complete')
-    .sort((a, b) => b.metadata.creationTimestamp.localeCompare(a.metadata.creationTimestamp))[0]
+    .sort((a, b) =>
+      b.metadata.creationTimestamp.localeCompare(a.metadata.creationTimestamp)
+    )[0]
   patchResourceRaw<CronJob>('CronJob', name, namespace, (current) => ({
     ...current,
     status: {

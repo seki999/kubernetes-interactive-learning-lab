@@ -110,9 +110,7 @@ function updateReplicaCount(replicaSet: ReplicaSet, replicas: number): ReplicaSe
 }
 
 /** 为旧版本实验数据补齐 Revision 注解，避免升级后历史从 0 开始。 */
-function normalizeReplicaSetRevisions(
-  replicaSets: ReplicaSet[]
-): ReplicaSet[] {
+function normalizeReplicaSetRevisions(replicaSets: ReplicaSet[]): ReplicaSet[] {
   let nextRevision = Math.max(
     0,
     ...replicaSets.map((replicaSet) => replicaSetRevision(replicaSet))
@@ -176,8 +174,7 @@ export function reconcileDeployment(deployment: Deployment): void {
 
   if (!targetReplicaSet) {
     const revision =
-      Math.max(0, ...replicaSets.map((replicaSet) => replicaSetRevision(replicaSet))) +
-      1
+      Math.max(0, ...replicaSets.map((replicaSet) => replicaSetRevision(replicaSet))) + 1
     targetReplicaSet = createReplicaSet(
       deployment,
       revision,
@@ -204,10 +201,7 @@ export function reconcileDeployment(deployment: Deployment): void {
 
   if (oldReplicaSets.length === 0) {
     const fromReplicas = targetReplicaSet.spec.replicas
-    targetReplicaSet = updateReplicaCount(
-      targetReplicaSet,
-      deployment.spec.replicas
-    )
+    targetReplicaSet = updateReplicaCount(targetReplicaSet, deployment.spec.replicas)
     if (fromReplicas !== deployment.spec.replicas) {
       emitDomainEvent({
         type: 'DEPLOYMENT_SCALED',
@@ -228,10 +222,7 @@ export function reconcileDeployment(deployment: Deployment): void {
     for (const oldReplicaSet of oldReplicaSets) {
       reconcileReplicaSet(updateReplicaCount(oldReplicaSet, 0))
     }
-    targetReplicaSet = updateReplicaCount(
-      targetReplicaSet,
-      deployment.spec.replicas
-    )
+    targetReplicaSet = updateReplicaCount(targetReplicaSet, deployment.spec.replicas)
     reconcileReplicaSet(targetReplicaSet)
     syncDeploymentStatus(deployment.metadata.name, namespace)
     return

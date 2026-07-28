@@ -112,12 +112,12 @@ describe('runKubectlCommand', () => {
     runKubectlCommand('kubectl create deployment web --image=nginx:1.27 --replicas=2')
     await vi.advanceTimersByTimeAsync(1000)
 
-    expect(
-      runKubectlCommand('kubectl rollout status deployment/web').lines[0]
-    ).toContain('successfully rolled out')
-    expect(
-      runKubectlCommand('kubectl rollout history deployment/web').lines
-    ).toEqual(expect.arrayContaining(['1         Initial deployment']))
+    expect(runKubectlCommand('kubectl rollout status deployment/web').lines[0]).toContain(
+      'successfully rolled out'
+    )
+    expect(runKubectlCommand('kubectl rollout history deployment/web').lines).toEqual(
+      expect.arrayContaining(['1         Initial deployment'])
+    )
 
     runKubectlCommand('kubectl set image deployment/web web=nginx:1.28')
     await vi.advanceTimersByTimeAsync(2000)
@@ -131,12 +131,14 @@ describe('runKubectlCommand', () => {
       ])
     )
 
-    expect(
-      runKubectlCommand('kubectl rollout undo deployment/web').lines[0]
-    ).toContain('rolled back')
+    expect(runKubectlCommand('kubectl rollout undo deployment/web').lines[0]).toContain(
+      'rolled back'
+    )
     await vi.advanceTimersByTimeAsync(2000)
     const history = runKubectlCommand('kubectl rollout history deployment/web')
-    expect(history.lines.some((line) => line.includes('Rollback to revision 1'))).toBe(true)
+    expect(history.lines.some((line) => line.includes('Rollback to revision 1'))).toBe(
+      true
+    )
 
     expect(
       runKubectlCommand('kubectl rollout restart deployment/web').lines[0]

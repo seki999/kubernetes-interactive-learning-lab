@@ -10,10 +10,7 @@
 // 这些资源相关实验的 interactive 字段为 false，页面会如实提示"暂不支持自动检测"，
 // 只提供背景说明、参考 YAML 和排查思路，不假装可以自动判分。
 
-import {
-  createResource,
-  updateResource,
-} from '@/kubernetes/api-server/apiServer'
+import { createResource, updateResource } from '@/kubernetes/api-server/apiServer'
 import type {
   ConfigMap,
   DaemonSet,
@@ -46,11 +43,15 @@ export const LABS: Lab[] = [
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const pod = resources.find(
-        (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'first-pod'
+        (resource): resource is Pod =>
+          resource.kind === 'Pod' && resource.metadata.name === 'first-pod'
       )
       if (!pod) return { passed: false, message: `还没有找到名为 first-pod 的 Pod。` }
       if (pod.status.phase !== 'Running') {
-        return { passed: false, message: `first-pod 当前状态是 ${pod.status.phase}，请等待它变为 Running。` }
+        return {
+          passed: false,
+          message: `first-pod 当前状态是 ${pod.status.phase}，请等待它变为 Running。`,
+        }
       }
       return { passed: true, message: `first-pod 已经成功运行！` }
     },
@@ -73,15 +74,23 @@ spec:
     title: `创建 Deployment`,
     background: `裸 Pod 没有自愈能力，实际项目里几乎都是通过 Deployment 管理应用副本。`,
     goal: `创建一个名为 web 的 Deployment，使用 nginx:1.27 镜像，副本数为 2，并等待全部副本 Ready。`,
-    hints: [`selector.matchLabels 必须能匹配到 template.metadata.labels`, `可以用 kubectl create deployment 或 YAML 实验室`],
+    hints: [
+      `selector.matchLabels 必须能匹配到 template.metadata.labels`,
+      `可以用 kubectl create deployment 或 YAML 实验室`,
+    ],
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const deployment = resources.find(
-        (resource): resource is Deployment => resource.kind === 'Deployment' && resource.metadata.name === 'web'
+        (resource): resource is Deployment =>
+          resource.kind === 'Deployment' && resource.metadata.name === 'web'
       )
-      if (!deployment) return { passed: false, message: `还没有找到名为 web 的 Deployment。` }
+      if (!deployment)
+        return { passed: false, message: `还没有找到名为 web 的 Deployment。` }
       if (deployment.spec.replicas !== 2) {
-        return { passed: false, message: `web 的副本数应该是 2，当前是 ${deployment.spec.replicas}。` }
+        return {
+          passed: false,
+          message: `web 的副本数应该是 2，当前是 ${deployment.spec.replicas}。`,
+        }
       }
       if (deployment.status.readyReplicas !== 2) {
         return {
@@ -119,13 +128,22 @@ spec:
     title: `扩容 Deployment`,
     background: `web 应用已经以 2 个副本稳定运行，现在流量增长，需要扩容。`,
     goal: `把 web Deployment 的副本数从 2 扩容到 5，并等待全部副本 Ready。`,
-    hints: [`kubectl scale deployment web --replicas=5`, `也可以直接在 YAML 实验室里修改 spec.replicas 并应用`],
+    hints: [
+      `kubectl scale deployment web --replicas=5`,
+      `也可以直接在 YAML 实验室里修改 spec.replicas 并应用`,
+    ],
     initialSetup: () => {
       seedBasicCluster(2)
       createResource<Deployment>({
         apiVersion: 'apps/v1',
         kind: 'Deployment',
-        metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'web',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: {
           replicas: 2,
           selector: { matchLabels: { app: 'web' } },
@@ -134,19 +152,36 @@ spec:
             spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
           },
         },
-        status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          availableReplicas: 0,
+          updatedReplicas: 0,
+          condition: 'Progressing',
+        },
       })
     },
     check: (resources) => {
       const deployment = resources.find(
-        (resource): resource is Deployment => resource.kind === 'Deployment' && resource.metadata.name === 'web'
+        (resource): resource is Deployment =>
+          resource.kind === 'Deployment' && resource.metadata.name === 'web'
       )
-      if (!deployment) return { passed: false, message: `没有找到 web Deployment，实验状态可能被重置了。` }
+      if (!deployment)
+        return {
+          passed: false,
+          message: `没有找到 web Deployment，实验状态可能被重置了。`,
+        }
       if (deployment.spec.replicas !== 5) {
-        return { passed: false, message: `目标副本数应该是 5，当前是 ${deployment.spec.replicas}。` }
+        return {
+          passed: false,
+          message: `目标副本数应该是 5，当前是 ${deployment.spec.replicas}。`,
+        }
       }
       if (deployment.status.readyReplicas !== 5) {
-        return { passed: false, message: `还有 Pod 没有 Ready（${deployment.status.readyReplicas}/5），请再等一下。` }
+        return {
+          passed: false,
+          message: `还有 Pod 没有 Ready（${deployment.status.readyReplicas}/5），请再等一下。`,
+        }
       }
       return { passed: true, message: `web 已经成功扩容到 5 个 Ready 副本！` }
     },
@@ -162,13 +197,22 @@ kubectl scale deployment web --replicas=5`,
     title: `创建 Service`,
     background: `web Deployment 已经有多个副本在运行，但每个 Pod 的 IP 都会变化，需要一个稳定的访问入口。`,
     goal: `创建一个名为 web-svc 的 Service，selector 指向 app: web，并确认它至少有一个就绪的 Endpoint。`,
-    hints: [`kubectl expose deployment web --port=80`, `Service 创建后会自动生成同名的 Endpoints`],
+    hints: [
+      `kubectl expose deployment web --port=80`,
+      `Service 创建后会自动生成同名的 Endpoints`,
+    ],
     initialSetup: () => {
       seedBasicCluster(1)
       createResource<Deployment>({
         apiVersion: 'apps/v1',
         kind: 'Deployment',
-        metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'web',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: {
           replicas: 2,
           selector: { matchLabels: { app: 'web' } },
@@ -177,14 +221,22 @@ kubectl scale deployment web --replicas=5`,
             spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
           },
         },
-        status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          availableReplicas: 0,
+          updatedReplicas: 0,
+          condition: 'Progressing',
+        },
       })
     },
     check: (resources) => {
       const service = resources.find(
-        (resource): resource is Service => resource.kind === 'Service' && resource.metadata.name === 'web-svc'
+        (resource): resource is Service =>
+          resource.kind === 'Service' && resource.metadata.name === 'web-svc'
       )
-      if (!service) return { passed: false, message: `还没有找到名为 web-svc 的 Service。` }
+      if (!service)
+        return { passed: false, message: `还没有找到名为 web-svc 的 Service。` }
       if (service.spec.selector.app !== 'web') {
         return { passed: false, message: `web-svc 的 selector 应该匹配 app: web。` }
       }
@@ -195,9 +247,15 @@ kubectl scale deployment web --replicas=5`,
           resource.metadata.namespace === service.metadata.namespace
       )
       if (!endpoints || endpoints.addresses.length === 0) {
-        return { passed: false, message: `web-svc 还没有就绪的 Endpoint，请确认 selector 和 Pod label 一致。` }
+        return {
+          passed: false,
+          message: `web-svc 还没有就绪的 Endpoint，请确认 selector 和 Pod label 一致。`,
+        }
       }
-      return { passed: true, message: `web-svc 已经有 ${endpoints.addresses.length} 个就绪后端！` }
+      return {
+        passed: true,
+        message: `web-svc 已经有 ${endpoints.addresses.length} 个就绪后端！`,
+      }
     },
     referenceYaml: `apiVersion: v1
 kind: Service
@@ -221,13 +279,22 @@ spec:
     title: `使用 NodePort 暴露服务`,
     background: `ClusterIP 类型的 Service 只能在集群内部访问，如果要从集群外部直接访问，需要用 NodePort。`,
     goal: `创建一个 type 为 NodePort、名为 web-nodeport 的 Service，selector 指向 app: web。`,
-    hints: [`spec.type 设置为 NodePort`, `可以指定 ports[].nodePort，不指定时也应该有默认值`],
+    hints: [
+      `spec.type 设置为 NodePort`,
+      `可以指定 ports[].nodePort，不指定时也应该有默认值`,
+    ],
     initialSetup: () => {
       seedBasicCluster(1)
       createResource<Deployment>({
         apiVersion: 'apps/v1',
         kind: 'Deployment',
-        metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'web',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: {
           replicas: 1,
           selector: { matchLabels: { app: 'web' } },
@@ -236,16 +303,27 @@ spec:
             spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
           },
         },
-        status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          availableReplicas: 0,
+          updatedReplicas: 0,
+          condition: 'Progressing',
+        },
       })
     },
     check: (resources) => {
       const service = resources.find(
-        (resource): resource is Service => resource.kind === 'Service' && resource.metadata.name === 'web-nodeport'
+        (resource): resource is Service =>
+          resource.kind === 'Service' && resource.metadata.name === 'web-nodeport'
       )
-      if (!service) return { passed: false, message: `还没有找到名为 web-nodeport 的 Service。` }
+      if (!service)
+        return { passed: false, message: `还没有找到名为 web-nodeport 的 Service。` }
       if (service.spec.type !== 'NodePort') {
-        return { passed: false, message: `web-nodeport 的 type 应该是 NodePort，当前是 ${service.spec.type}。` }
+        return {
+          passed: false,
+          message: `web-nodeport 的 type 应该是 NodePort，当前是 ${service.spec.type}。`,
+        }
       }
       return { passed: true, message: `web-nodeport 已经是 NodePort 类型！` }
     },
@@ -271,7 +349,9 @@ spec:
     title: `创建 Ingress`,
     background: `你希望通过域名 demo.example.com 直接访问 web-svc，而不是暴露 NodePort。`,
     goal: `参考下面的 YAML，理解如何用 Ingress 把域名/路径路由到 Service（本模拟器暂不支持创建该资源）。`,
-    hints: [`真实集群中还需要部署一个 Ingress Controller（如 nginx-ingress）才能让规则真正生效`],
+    hints: [
+      `真实集群中还需要部署一个 Ingress Controller（如 nginx-ingress）才能让规则真正生效`,
+    ],
     initialSetup: () => seedBasicCluster(1),
     check: () => ({
       passed: false,
@@ -307,13 +387,21 @@ spec:
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const configMap = resources.find(
-        (resource): resource is ConfigMap => resource.kind === 'ConfigMap' && resource.metadata.name === 'app-config'
+        (resource): resource is ConfigMap =>
+          resource.kind === 'ConfigMap' && resource.metadata.name === 'app-config'
       )
-      if (!configMap) return { passed: false, message: `还没有找到名为 app-config 的 ConfigMap。` }
+      if (!configMap)
+        return { passed: false, message: `还没有找到名为 app-config 的 ConfigMap。` }
       if (Object.keys(configMap.data).length === 0) {
-        return { passed: false, message: `app-config 目前没有任何配置项，请至少添加一项。` }
+        return {
+          passed: false,
+          message: `app-config 目前没有任何配置项，请至少添加一项。`,
+        }
       }
-      return { passed: true, message: `app-config 已创建，包含 ${Object.keys(configMap.data).length} 项配置。` }
+      return {
+        passed: true,
+        message: `app-config 已创建，包含 ${Object.keys(configMap.data).length} 项配置。`,
+      }
     },
     referenceYaml: `apiVersion: v1
 kind: ConfigMap
@@ -336,7 +424,8 @@ data:
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const found = resources.some(
-        (resource): resource is Secret => resource.kind === 'Secret' && resource.metadata.name === 'db-secret'
+        (resource): resource is Secret =>
+          resource.kind === 'Secret' && resource.metadata.name === 'db-secret'
       )
       return found
         ? { passed: true, message: `db-secret 已创建。` }
@@ -360,16 +449,24 @@ data:
     title: `挂载 PVC`,
     background: `应用需要持久化存储，你需要先准备好存储资源，再申请并成功绑定。`,
     goal: `创建一个容量足够的 PV，再创建一个名为 data-pvc 的 PVC，使其成功绑定（status.phase 变为 Bound）。`,
-    hints: [`PV 的 capacity 必须 >= PVC 的 storageRequest`, `accessModes 需要至少有一个交集`, `storageClassName 要一致（都不填也算一致）`],
+    hints: [
+      `PV 的 capacity 必须 >= PVC 的 storageRequest`,
+      `accessModes 需要至少有一个交集`,
+      `storageClassName 要一致（都不填也算一致）`,
+    ],
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const pvc = resources.find(
         (resource): resource is PersistentVolumeClaim =>
-          resource.kind === 'PersistentVolumeClaim' && resource.metadata.name === 'data-pvc'
+          resource.kind === 'PersistentVolumeClaim' &&
+          resource.metadata.name === 'data-pvc'
       )
       if (!pvc) return { passed: false, message: `还没有找到名为 data-pvc 的 PVC。` }
       if (pvc.status.phase !== 'Bound') {
-        return { passed: false, message: `data-pvc 当前状态是 ${pvc.status.phase}，请检查是否有匹配的 PV。` }
+        return {
+          passed: false,
+          message: `data-pvc 当前状态是 ${pvc.status.phase}，请检查是否有匹配的 PV。`,
+        }
       }
       return { passed: true, message: `data-pvc 已成功绑定到 ${pvc.status.volumeName}！` }
     },
@@ -403,13 +500,21 @@ spec:
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const pod = resources.find(
-        (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'probe-demo'
+        (resource): resource is Pod =>
+          resource.kind === 'Pod' && resource.metadata.name === 'probe-demo'
       )
       if (!pod) return { passed: false, message: `还没有找到名为 probe-demo 的 Pod。` }
-      const hasReadiness = pod.spec.containers.some((container) => Boolean(container.readinessProbe))
-      const hasLiveness = pod.spec.containers.some((container) => Boolean(container.livenessProbe))
+      const hasReadiness = pod.spec.containers.some((container: any) =>
+        Boolean(container.readinessProbe)
+      )
+      const hasLiveness = pod.spec.containers.some((container: any) =>
+        Boolean(container.livenessProbe)
+      )
       if (!hasReadiness || !hasLiveness) {
-        return { passed: false, message: `probe-demo 还缺少 readinessProbe 或 livenessProbe。` }
+        return {
+          passed: false,
+          message: `probe-demo 还缺少 readinessProbe 或 livenessProbe。`,
+        }
       }
       return { passed: true, message: `probe-demo 已经同时配置了两种探针！` }
     },
@@ -441,14 +546,19 @@ spec:
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const pod = resources.find(
-        (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'resource-demo'
+        (resource): resource is Pod =>
+          resource.kind === 'Pod' && resource.metadata.name === 'resource-demo'
       )
       if (!pod) return { passed: false, message: `还没有找到名为 resource-demo 的 Pod。` }
       const configured = pod.spec.containers.every(
-        (container) => container.resources?.requests?.cpu && container.resources?.limits?.cpu
+        (container: any) =>
+          container.resources?.requests?.cpu && container.resources?.limits?.cpu
       )
       if (!configured) {
-        return { passed: false, message: `resource-demo 的容器还没有同时设置 requests 和 limits。` }
+        return {
+          passed: false,
+          message: `resource-demo 的容器还没有同时设置 requests 和 limits。`,
+        }
       }
       return { passed: true, message: `resource-demo 已经设置了合理的资源请求和限制！` }
     },
@@ -489,7 +599,13 @@ spec:
       createResource<Deployment>({
         apiVersion: 'apps/v1',
         kind: 'Deployment',
-        metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'web',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: {
           replicas: 2,
           selector: { matchLabels: { app: 'web' } },
@@ -506,7 +622,13 @@ spec:
             },
           },
         },
-        status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          availableReplicas: 0,
+          updatedReplicas: 0,
+          condition: 'Progressing',
+        },
       })
     },
     check: (resources) => {
@@ -516,14 +638,25 @@ spec:
       )
       const hpa = resources.find(
         (resource): resource is HorizontalPodAutoscaler =>
-          resource.kind === 'HorizontalPodAutoscaler' && resource.metadata.name === 'web-hpa'
+          resource.kind === 'HorizontalPodAutoscaler' &&
+          resource.metadata.name === 'web-hpa'
       )
       if (!deployment) {
-        return { passed: false, message: `没有找到 web 这个 Deployment（它应该已经在初始状态里了，请不要删除它）。` }
+        return {
+          passed: false,
+          message: `没有找到 web 这个 Deployment（它应该已经在初始状态里了，请不要删除它）。`,
+        }
       }
-      if (!hpa) return { passed: false, message: `还没有找到 web-hpa 这个 HorizontalPodAutoscaler。` }
+      if (!hpa)
+        return {
+          passed: false,
+          message: `还没有找到 web-hpa 这个 HorizontalPodAutoscaler。`,
+        }
       if (hpa.spec.scaleTargetRef.name !== 'web') {
-        return { passed: false, message: `web-hpa 的 scaleTargetRef 应该指向 Deployment/web。` }
+        return {
+          passed: false,
+          message: `web-hpa 的 scaleTargetRef 应该指向 Deployment/web。`,
+        }
       }
       if (hpa.status.currentReplicas <= hpa.spec.minReplicas) {
         return {
@@ -532,7 +665,10 @@ spec:
         }
       }
       if (deployment.spec.replicas !== hpa.status.currentReplicas) {
-        return { passed: false, message: `HPA 期望副本数和 Deployment 实际副本数还没有同步，请稍等。` }
+        return {
+          passed: false,
+          message: `HPA 期望副本数和 Deployment 实际副本数还没有同步，请稍等。`,
+        }
       }
       return {
         passed: true,
@@ -646,19 +782,30 @@ spec:
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const node1 = resources.find(
-        (resource): resource is Node => resource.kind === 'Node' && resource.metadata.name === 'node-1'
+        (resource): resource is Node =>
+          resource.kind === 'Node' && resource.metadata.name === 'node-1'
       )
       const hasTaint = node1?.spec.taints?.some(
-        (taint) => taint.key === 'dedicated' && taint.value === 'gpu' && taint.effect === 'NoSchedule'
+        (taint) =>
+          taint.key === 'dedicated' &&
+          taint.value === 'gpu' &&
+          taint.effect === 'NoSchedule'
       )
       if (!hasTaint) {
-        return { passed: false, message: `node-1 还没有被打上 dedicated=gpu:NoSchedule 污点。` }
+        return {
+          passed: false,
+          message: `node-1 还没有被打上 dedicated=gpu:NoSchedule 污点。`,
+        }
       }
       const pod = resources.find(
-        (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'gpu-workload'
+        (resource): resource is Pod =>
+          resource.kind === 'Pod' && resource.metadata.name === 'gpu-workload'
       )
       if (!pod || pod.status.nodeName !== 'node-1') {
-        return { passed: false, message: `gpu-workload 还没有成功调度到 node-1，请检查 Toleration 配置。` }
+        return {
+          passed: false,
+          message: `gpu-workload 还没有成功调度到 node-1，请检查 Toleration 配置。`,
+        }
       }
       return { passed: true, message: `gpu-workload 已经成功调度到带污点的 node-1！` }
     },
@@ -691,13 +838,20 @@ spec:
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const pod = resources.find(
-        (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'affinity-demo'
+        (resource): resource is Pod =>
+          resource.kind === 'Pod' && resource.metadata.name === 'affinity-demo'
       )
       if (!pod) return { passed: false, message: `还没有找到名为 affinity-demo 的 Pod。` }
       if (!pod.status.nodeName) {
-        return { passed: false, message: `affinity-demo 还没有被成功调度，请检查 zone 标签和 nodeAffinity 配置。` }
+        return {
+          passed: false,
+          message: `affinity-demo 还没有被成功调度，请检查 zone 标签和 nodeAffinity 配置。`,
+        }
       }
-      return { passed: true, message: `affinity-demo 已经成功调度到 ${pod.status.nodeName}！` }
+      return {
+        passed: true,
+        message: `affinity-demo 已经成功调度到 ${pod.status.nodeName}！`,
+      }
     },
     referenceYaml: `# 先给节点打标签：kubectl label node node-1 zone=zone-a
 apiVersion: v1
@@ -735,7 +889,13 @@ spec:
       createResource<Deployment>({
         apiVersion: 'apps/v1',
         kind: 'Deployment',
-        metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'web',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: {
           replicas: 2,
           selector: { matchLabels: { app: 'web' } },
@@ -744,16 +904,23 @@ spec:
             spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
           },
         },
-        status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          availableReplicas: 0,
+          updatedReplicas: 0,
+          condition: 'Progressing',
+        },
       })
     },
     check: (resources) => {
       const deployment = resources.find(
-        (resource): resource is Deployment => resource.kind === 'Deployment' && resource.metadata.name === 'web'
+        (resource): resource is Deployment =>
+          resource.kind === 'Deployment' && resource.metadata.name === 'web'
       )
       if (!deployment) return { passed: false, message: `没有找到 web Deployment。` }
       const usesNewImage = deployment.spec.template.spec.containers.some(
-        (container) => container.image === 'nginx:1.28'
+        (container: any) => container.image === 'nginx:1.28'
       )
       if (!usesNewImage) {
         return { passed: false, message: `web 的镜像还不是 nginx:1.28。` }
@@ -762,7 +929,9 @@ spec:
         (resource): resource is Pod =>
           resource.kind === 'Pod' &&
           resource.metadata.namespace === 'default' &&
-          resource.spec.containers.some((container) => container.image === 'nginx:1.28')
+          resource.spec.containers.some(
+            (container: any) => container.image === 'nginx:1.28'
+          )
       )
       if (pods.length === 0 || !pods.every((pod) => pod.status.phase === 'Running')) {
         return { passed: false, message: `新镜像的 Pod 还没有全部 Running，请再等一下。` }
@@ -780,7 +949,9 @@ spec:
     title: `执行版本回滚`,
     background: `刚才的镜像升级上线后发现有问题，需要回滚到上一个版本。`,
     goal: `使用 kubectl rollout undo 把 web 从 nginx:1.28 回滚到 nginx:1.27。`,
-    hints: [`先用 kubectl rollout history deployment/web 查看 Revision，再执行 rollout undo`],
+    hints: [
+      `先用 kubectl rollout history deployment/web 查看 Revision，再执行 rollout undo`,
+    ],
     initialSetup: () => {
       seedBasicCluster(1)
       createResource<Deployment>({
@@ -826,7 +997,7 @@ spec:
           resource.kind === 'Deployment' && resource.metadata.name === 'web'
       )
       const rolledBack = deployment?.spec.template.spec.containers.some(
-        (container) => container.image === 'nginx:1.27'
+        (container: any) => container.image === 'nginx:1.27'
       )
       return rolledBack
         ? { passed: true, message: `web 已回滚到 nginx:1.27，新回滚版本正在滚动发布。` }
@@ -853,10 +1024,20 @@ kubectl rollout undo deployment/web`,
       createResource<Pod>({
         apiVersion: 'v1',
         kind: 'Pod',
-        metadata: { uid: '', name: 'stuck-pod', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'stuck-pod',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: {
           containers: [
-            { name: 'app', image: 'nginx:1.27', resources: { requests: { cpu: '32', memory: '64Gi' } } },
+            {
+              name: 'app',
+              image: 'nginx:1.27',
+              resources: { requests: { cpu: '32', memory: '64Gi' } },
+            },
           ],
         },
         status: { phase: 'Pending', containerStatuses: [] },
@@ -864,11 +1045,16 @@ kubectl rollout undo deployment/web`,
     },
     check: (resources) => {
       const pod = resources.find(
-        (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'stuck-pod'
+        (resource): resource is Pod =>
+          resource.kind === 'Pod' && resource.metadata.name === 'stuck-pod'
       )
-      if (!pod) return { passed: false, message: `stuck-pod 不见了，实验状态可能被重置了。` }
+      if (!pod)
+        return { passed: false, message: `stuck-pod 不见了，实验状态可能被重置了。` }
       if (pod.status.phase !== 'Running') {
-        return { passed: false, message: `stuck-pod 目前是 ${pod.status.phase}，还没有修复。` }
+        return {
+          passed: false,
+          message: `stuck-pod 目前是 ${pod.status.phase}，还没有修复。`,
+        }
       }
       return { passed: true, message: `stuck-pod 已经修复并进入 Running！` }
     },
@@ -899,7 +1085,13 @@ kubectl rollout undo deployment/web`,
       createResource<Pod>({
         apiVersion: 'v1',
         kind: 'Pod',
-        metadata: { uid: '', name: 'crash-pod', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'crash-pod',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: { containers: [{ name: 'app', image: 'nginx:1.27' }] },
         status: {
           phase: 'CrashLoopBackOff',
@@ -907,18 +1099,29 @@ kubectl rollout undo deployment/web`,
           reason: 'CrashLoopBackOff',
           message: '容器反复崩溃退出，Kubelet 正在按退避策略重试启动',
           containerStatuses: [
-            { name: 'app', ready: false, restartCount: 6, state: 'waiting', reason: 'CrashLoopBackOff' },
+            {
+              name: 'app',
+              ready: false,
+              restartCount: 6,
+              state: 'waiting',
+              reason: 'CrashLoopBackOff',
+            },
           ],
         },
       })
     },
     check: (resources) => {
       const pod = resources.find(
-        (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'crash-pod'
+        (resource): resource is Pod =>
+          resource.kind === 'Pod' && resource.metadata.name === 'crash-pod'
       )
-      if (!pod) return { passed: false, message: `crash-pod 不见了，实验状态可能被重置了。` }
+      if (!pod)
+        return { passed: false, message: `crash-pod 不见了，实验状态可能被重置了。` }
       if (pod.status.phase !== 'Running') {
-        return { passed: false, message: `crash-pod 目前是 ${pod.status.phase}，还没有修复。` }
+        return {
+          passed: false,
+          message: `crash-pod 目前是 ${pod.status.phase}，还没有修复。`,
+        }
       }
       return { passed: true, message: `crash-pod 已经修复并进入 Running！` }
     },
@@ -942,18 +1145,29 @@ kubectl rollout undo deployment/web`,
       createResource<Pod>({
         apiVersion: 'v1',
         kind: 'Pod',
-        metadata: { uid: '', name: 'broken-image', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'broken-image',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: { containers: [{ name: 'app', image: 'nginx:not-exist' }] },
         status: { phase: 'Pending', containerStatuses: [] },
       })
     },
     check: (resources) => {
       const pod = resources.find(
-        (resource): resource is Pod => resource.kind === 'Pod' && resource.metadata.name === 'broken-image'
+        (resource): resource is Pod =>
+          resource.kind === 'Pod' && resource.metadata.name === 'broken-image'
       )
-      if (!pod) return { passed: false, message: `broken-image 不见了，实验状态可能被重置了。` }
+      if (!pod)
+        return { passed: false, message: `broken-image 不见了，实验状态可能被重置了。` }
       if (pod.status.phase !== 'Running') {
-        return { passed: false, message: `broken-image 目前是 ${pod.status.phase}，还没有修复。` }
+        return {
+          passed: false,
+          message: `broken-image 目前是 ${pod.status.phase}，还没有修复。`,
+        }
       }
       return { passed: true, message: `broken-image 已经修复并进入 Running！` }
     },
@@ -978,7 +1192,13 @@ kubectl rollout undo deployment/web`,
       createResource<Deployment>({
         apiVersion: 'apps/v1',
         kind: 'Deployment',
-        metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'web',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: {
           replicas: 2,
           selector: { matchLabels: { app: 'web' } },
@@ -987,22 +1207,40 @@ kubectl rollout undo deployment/web`,
             spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
           },
         },
-        status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          availableReplicas: 0,
+          updatedReplicas: 0,
+          condition: 'Progressing',
+        },
       })
       // 故意让 selector 写错（app: backend），使其匹配不到任何 Pod。
       createResource<Service>({
         apiVersion: 'v1',
         kind: 'Service',
-        metadata: { uid: '', name: 'web-svc', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
-        spec: { type: 'ClusterIP', selector: { app: 'backend' }, ports: [{ port: 80, targetPort: 80 }] },
+        metadata: {
+          uid: '',
+          name: 'web-svc',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
+        spec: {
+          type: 'ClusterIP',
+          selector: { app: 'backend' },
+          ports: [{ port: 80, targetPort: 80 }],
+        },
         status: { clusterIP: '10.96.0.50' },
       })
     },
     check: (resources) => {
       const service = resources.find(
-        (resource): resource is Service => resource.kind === 'Service' && resource.metadata.name === 'web-svc'
+        (resource): resource is Service =>
+          resource.kind === 'Service' && resource.metadata.name === 'web-svc'
       )
-      if (!service) return { passed: false, message: `web-svc 不见了，实验状态可能被重置了。` }
+      if (!service)
+        return { passed: false, message: `web-svc 不见了，实验状态可能被重置了。` }
       const endpoints = resources.find(
         (resource): resource is Endpoints =>
           resource.kind === 'Endpoints' &&
@@ -1010,9 +1248,15 @@ kubectl rollout undo deployment/web`,
           resource.metadata.namespace === service.metadata.namespace
       )
       if (!endpoints || endpoints.addresses.length === 0) {
-        return { passed: false, message: `web-svc 目前还没有就绪的 Endpoint，请检查 selector。` }
+        return {
+          passed: false,
+          message: `web-svc 目前还没有就绪的 Endpoint，请检查 selector。`,
+        }
       }
-      return { passed: true, message: `web-svc 已经恢复，当前有 ${endpoints.addresses.length} 个就绪后端！` }
+      return {
+        passed: true,
+        message: `web-svc 已经恢复，当前有 ${endpoints.addresses.length} 个就绪后端！`,
+      }
     },
     referenceYaml: `# 修复方式：把 Service 的 selector 改成和 Pod label 一致
 apiVersion: v1
@@ -1037,21 +1281,35 @@ spec:
     title: `排查 PVC Pending`,
     background: `有一个 PVC 一直绑定不上，应用因此无法启动。`,
     goal: `找出 data-pvc 为什么绑定不上并修复，使其 status.phase 变为 Bound。`,
-    hints: [`检查现有 PV 的容量、accessModes、storageClassName 是否满足 PVC 的要求`, `可以修改 PVC 的请求，也可以新增一个满足条件的 PV`],
+    hints: [
+      `检查现有 PV 的容量、accessModes、storageClassName 是否满足 PVC 的要求`,
+      `可以修改 PVC 的请求，也可以新增一个满足条件的 PV`,
+    ],
     initialSetup: () => {
       seedBasicCluster(1)
       // 故意提供一个容量不够的 PV（500Mi < 请求的 1Gi）。
       createResource<PersistentVolume>({
         apiVersion: 'v1',
         kind: 'PersistentVolume',
-        metadata: { uid: '', name: 'pv-small', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'pv-small',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: { accessModes: ['ReadWriteOnce'], capacity: '500Mi' },
         status: { phase: 'Available' },
       })
       createResource<PersistentVolumeClaim>({
         apiVersion: 'v1',
         kind: 'PersistentVolumeClaim',
-        metadata: { uid: '', name: 'data-pvc', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'data-pvc',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: { accessModes: ['ReadWriteOnce'], storageRequest: '1Gi' },
         status: { phase: 'Pending' },
       })
@@ -1059,13 +1317,21 @@ spec:
     check: (resources) => {
       const pvc = resources.find(
         (resource): resource is PersistentVolumeClaim =>
-          resource.kind === 'PersistentVolumeClaim' && resource.metadata.name === 'data-pvc'
+          resource.kind === 'PersistentVolumeClaim' &&
+          resource.metadata.name === 'data-pvc'
       )
-      if (!pvc) return { passed: false, message: `data-pvc 不见了，实验状态可能被重置了。` }
+      if (!pvc)
+        return { passed: false, message: `data-pvc 不见了，实验状态可能被重置了。` }
       if (pvc.status.phase !== 'Bound') {
-        return { passed: false, message: `data-pvc 目前是 ${pvc.status.phase}，还没有绑定成功。` }
+        return {
+          passed: false,
+          message: `data-pvc 目前是 ${pvc.status.phase}，还没有绑定成功。`,
+        }
       }
-      return { passed: true, message: `data-pvc 已经成功绑定到 ${pvc.status.volumeName}！` }
+      return {
+        passed: true,
+        message: `data-pvc 已经成功绑定到 ${pvc.status.volumeName}！`,
+      }
     },
     referenceYaml: `# 修复方式二选一：
 # 1. 新增一个容量足够的 PV（capacity >= 1Gi）
@@ -1096,7 +1362,13 @@ spec:
       createResource<Deployment>({
         apiVersion: 'apps/v1',
         kind: 'Deployment',
-        metadata: { uid: '', name: 'web', namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+        metadata: {
+          uid: '',
+          name: 'web',
+          namespace: 'default',
+          resourceVersion: '',
+          creationTimestamp: '',
+        },
         spec: {
           replicas: 2,
           selector: { matchLabels: { app: 'web' } },
@@ -1105,18 +1377,28 @@ spec:
             spec: { containers: [{ name: 'web', image: 'nginx:1.27' }] },
           },
         },
-        status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          availableReplicas: 0,
+          updatedReplicas: 0,
+          condition: 'Progressing',
+        },
       })
     },
     check: (resources) => {
       const node1 = resources.find(
-        (resource): resource is Node => resource.kind === 'Node' && resource.metadata.name === 'node-1'
+        (resource): resource is Node =>
+          resource.kind === 'Node' && resource.metadata.name === 'node-1'
       )
       const node1Ready = node1?.status.conditions.some(
         (condition) => condition.type === 'Ready' && condition.status === 'True'
       )
       if (node1Ready !== false) {
-        return { passed: false, message: `请先把 node-1 的 Ready 条件改为 False，模拟节点故障。` }
+        return {
+          passed: false,
+          message: `请先把 node-1 的 Ready 条件改为 False，模拟节点故障。`,
+        }
       }
       const webPods = resources.filter(
         (resource): resource is Pod =>
@@ -1127,7 +1409,10 @@ spec:
         (pod) => pod.status.nodeName === 'node-2' && pod.status.phase === 'Running'
       )
       if (!movedOff || !hasRunningElsewhere) {
-        return { passed: false, message: `web 的 Pod 还没有全部迁移到健康节点，请再等一下调度和拉镜像完成。` }
+        return {
+          passed: false,
+          message: `web 的 Pod 还没有全部迁移到健康节点，请再等一下调度和拉镜像完成。`,
+        }
       }
       return { passed: true, message: `node-1 故障后，Pod 已经成功重新调度到 node-2！` }
     },
@@ -1161,12 +1446,15 @@ status:
           resource.kind === 'Deployment' && resource.metadata.name === 'final-app'
       )
       const usesConfigMap = Boolean(
-        deployment?.spec.template.spec.containers.some((container) =>
-          container.env?.some((env) => env.valueFromConfigMap?.name === 'final-app-config')
+        deployment?.spec.template.spec.containers.some((container: any) =>
+          container.env?.some(
+            (env: any) => env.valueFromConfigMap?.name === 'final-app-config'
+          )
         )
       )
       const deploymentReady =
-        Boolean(deployment) && deployment!.status.readyReplicas === deployment!.spec.replicas
+        Boolean(deployment) &&
+        deployment!.status.readyReplicas === deployment!.spec.replicas
       const service = resources.find(
         (resource): resource is Service =>
           resource.kind === 'Service' &&
@@ -1177,13 +1465,22 @@ status:
         (resource): resource is Endpoints =>
           resource.kind === 'Endpoints' && resource.metadata.name === 'final-app-svc'
       )
-      const serviceReady = Boolean(service) && Boolean(endpoints) && endpoints!.addresses.length > 0
+      const serviceReady =
+        Boolean(service) && Boolean(endpoints) && endpoints!.addresses.length > 0
 
-      if (!hasConfigMap) return { passed: false, message: `还没有找到 final-app-config 这个 ConfigMap。` }
-      if (!deployment) return { passed: false, message: `还没有找到 final-app 这个 Deployment。` }
-      if (!usesConfigMap) return { passed: false, message: `final-app 还没有通过环境变量引用 final-app-config。` }
-      if (!deploymentReady) return { passed: false, message: `final-app 还没有全部副本 Ready。` }
-      if (!serviceReady) return { passed: false, message: `final-app-svc 还没有就绪的 Endpoint。` }
+      if (!hasConfigMap)
+        return { passed: false, message: `还没有找到 final-app-config 这个 ConfigMap。` }
+      if (!deployment)
+        return { passed: false, message: `还没有找到 final-app 这个 Deployment。` }
+      if (!usesConfigMap)
+        return {
+          passed: false,
+          message: `final-app 还没有通过环境变量引用 final-app-config。`,
+        }
+      if (!deploymentReady)
+        return { passed: false, message: `final-app 还没有全部副本 Ready。` }
+      if (!serviceReady)
+        return { passed: false, message: `final-app-svc 还没有就绪的 Endpoint。` }
       return { passed: true, message: `完整的 Web 应用架构已经搭建成功！` }
     },
     referenceYaml: `apiVersion: v1
@@ -1238,7 +1535,10 @@ spec:
     title: `运行并行 Job`,
     background: `数据团队需要把三个独立分片处理完成，并允许同时运行两个工作 Pod。`,
     goal: `创建 batch-lab Job，设置 completions=3、parallelism=2，并等待 Job Complete。`,
-    hints: [`Job 的 Pod 完成后会进入 Succeeded`, `使用 kubectl get jobs 和 kubectl describe job batch-lab 观察计数`],
+    hints: [
+      `Job 的 Pod 完成后会进入 Succeeded`,
+      `使用 kubectl get jobs 和 kubectl describe job batch-lab 观察计数`,
+    ],
     initialSetup: () => seedBasicCluster(2),
     check: (resources) => {
       const job = resources.find(
@@ -1251,7 +1551,10 @@ spec:
       }
       return job.status.condition === 'Complete'
         ? { passed: true, message: `三个分片已经全部完成！` }
-        : { passed: false, message: `Job 当前是 ${job.status.condition}，请等待工作 Pod 完成。` }
+        : {
+            passed: false,
+            message: `Job 当前是 ${job.status.condition}，请等待工作 Pod 完成。`,
+          }
     },
     referenceYaml: `apiVersion: batch/v1
 kind: Job
@@ -1275,7 +1578,10 @@ spec:
     title: `创建并触发 CronJob`,
     background: `报表任务需要每 5 分钟执行一次，同时禁止上一次未完成时再启动一份。`,
     goal: `创建 report-cron，schedule 为 */5 * * * *，concurrencyPolicy=Forbid，并至少触发一个 Job。`,
-    hints: [`在 CronJob 详情里可以手动触发或推进模拟时间`, `也可以执行 kubectl create job run-now --from=cronjob/report-cron`],
+    hints: [
+      `在 CronJob 详情里可以手动触发或推进模拟时间`,
+      `也可以执行 kubectl create job run-now --from=cronjob/report-cron`,
+    ],
     initialSetup: () => seedBasicCluster(1),
     check: (resources) => {
       const cronJob = resources.find(
@@ -1287,7 +1593,8 @@ spec:
         (resource): resource is Job =>
           resource.kind === 'Job' &&
           resource.metadata.ownerReferences?.some(
-            (reference) => reference.kind === 'CronJob' && reference.uid === cronJob.metadata.uid
+            (reference: any) =>
+              reference.kind === 'CronJob' && reference.uid === cronJob.metadata.uid
           ) === true
       )
       return hasJob
@@ -1327,7 +1634,8 @@ spec:
         (resource): resource is DaemonSet =>
           resource.kind === 'DaemonSet' && resource.metadata.name === 'fluent-bit'
       )
-      if (!daemonSet) return { passed: false, message: `还没有找到 fluent-bit DaemonSet。` }
+      if (!daemonSet)
+        return { passed: false, message: `还没有找到 fluent-bit DaemonSet。` }
       const nodeCount = resources.filter((resource) => resource.kind === 'Node').length
       const { desiredNumberScheduled, numberReady } = daemonSet.status
       if (desiredNumberScheduled !== nodeCount) {
@@ -1342,7 +1650,10 @@ spec:
           message: `${numberReady}/${desiredNumberScheduled} 个 Pod 已就绪，请再等待一下。`,
         }
       }
-      return { passed: true, message: `fluent-bit 已经在全部 ${nodeCount} 个 Node 上就绪运行！` }
+      return {
+        passed: true,
+        message: `fluent-bit 已经在全部 ${nodeCount} 个 Node 上就绪运行！`,
+      }
     },
     referenceYaml: `apiVersion: apps/v1
 kind: DaemonSet

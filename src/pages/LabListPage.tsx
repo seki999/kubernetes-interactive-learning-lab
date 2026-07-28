@@ -11,8 +11,9 @@ export function LabListPage() {
       <div>
         <h1 className="text-xl font-bold">实验任务</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          共 {LABS.length} 个实验，已完成 {completedLabIds.length} 个。每个实验都会在虚拟集群里
-          自动检查你的操作是否达成目标，无论你是通过 kubectl 终端、YAML 实验室还是拖拽设计器完成的。
+          共 {LABS.length} 个实验，已完成 {completedLabIds.length}{' '}
+          个。每个实验都会在虚拟集群里 自动检查你的操作是否达成目标，无论你是通过 kubectl
+          终端、YAML 实验室还是拖拽设计器完成的。
         </p>
       </div>
 

@@ -3,13 +3,10 @@ import {
   listResources,
   patchResourceRaw,
 } from '@/kubernetes/api-server/objectStore'
-import {
-  ownedReplicaSets,
-  replicaSetRevision,
-} from '@/kubernetes/deployment/rollout'
+import { ownedReplicaSets, replicaSetRevision } from '@/kubernetes/deployment/rollout'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
-import type { Deployment, Pod, ReplicaSet } from '@/types/k8s'
+import type { Deployment, Pod, ReplicaSet, StatefulSet } from '@/types/k8s'
 
 function isPodReady(pod: Pod): boolean {
   return (
@@ -30,10 +27,7 @@ function podsOwnedBy(replicaSets: ReplicaSet[], namespace: string | undefined): 
   )
 }
 
-export function syncReplicaSetStatus(
-  name: string,
-  namespace: string | undefined
-): void {
+export function syncReplicaSetStatus(name: string, namespace: string | undefined): void {
   const replicaSet = getResource<ReplicaSet>('ReplicaSet', name, namespace)
   if (!replicaSet) return
   const ownedPods = podsOwnedBy([replicaSet], namespace)
@@ -57,10 +51,7 @@ export function syncReplicaSetStatus(
   }
 }
 
-export function syncDeploymentStatus(
-  name: string,
-  namespace: string | undefined
-): void {
+export function syncDeploymentStatus(name: string, namespace: string | undefined): void {
   const deployment = getResource<Deployment>('Deployment', name, namespace)
   if (!deployment) return
   const replicaSets = ownedReplicaSets(deployment)
@@ -118,10 +109,27 @@ export function syncDeploymentStatus(
         : `Deployment ${name} 的 Revision ${revision} 滚动更新失败`,
     })
     emitDomainEvent({
-      type: completed
-        ? 'DEPLOYMENT_ROLLOUT_COMPLETED'
-        : 'DEPLOYMENT_ROLLOUT_FAILED',
+      type: completed ? 'DEPLOYMENT_ROLLOUT_COMPLETED' : 'DEPLOYMENT_ROLLOUT_FAILED',
       payload: { name, namespace, revision },
     })
   }
+}
+
+export function syncStatefulSetStatus(name: string, namespace: string | undefined): void {
+  const statefulSet = getResource<StatefulSet>('StatefulSet', name, namespace)
+  if (!statefulSet) return
+  const pods = listResources<Pod>('Pod', namespace).filter((pod) =>
+    pod.metadata.ownerReferences?.some((ref) => ref.uid === statefulSet.metadata.uid)
+  )
+  const readyReplicas = pods.filter(isPodReady).length
+  patchResourceRaw<StatefulSet>('StatefulSet', name, namespace, (current) => ({
+    ...current,
+    status: {
+      ...current.status,
+      replicas: statefulSet.spec.replicas,
+      readyReplicas,
+      currentReplicas: pods.length,
+      updatedReplicas: pods.length,
+    },
+  }))
 }
