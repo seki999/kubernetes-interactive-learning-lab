@@ -14,17 +14,17 @@ test.describe('HPA Interactive Simulation', () => {
 
     // Check if the deployment node exists (it is part of the complete cluster seed).
     if (await deploymentNode.isVisible()) {
-       await deploymentNode.click()
+      await deploymentNode.click()
 
-       // Verify the details panel opens
-       await expect(page.locator('h2', { hasText: 'Deployment 详情' })).toBeVisible()
+      // Verify the details panel opens
+      await expect(page.locator('h2', { hasText: 'Deployment 详情' })).toBeVisible()
 
-       // Click "突发流量" to trigger scaling
-       const burstButton = page.locator('button', { hasText: '突发流量' })
-       await burstButton.click()
+      // Click "突发流量" to trigger scaling
+      const burstButton = page.locator('button', { hasText: '突发流量' })
+      await burstButton.click()
 
-       // Expect to see scale up message
-       await expect(page.locator('text=期望扩容到 10 副本')).toBeVisible()
+      // Expect to see scale up message
+      await expect(page.locator('text=期望扩容到 10 副本')).toBeVisible()
     }
   })
 })
