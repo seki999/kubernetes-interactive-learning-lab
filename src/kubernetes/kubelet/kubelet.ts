@@ -165,13 +165,8 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
   emitDomainEvent({ type: 'CONTAINER_STARTED', payload: { podName, namespace } })
   emitDomainEvent({ type: 'POD_READY', payload: { podName, namespace } })
 
-  if (
-    current.metadata.ownerReferences?.some((reference) => reference.kind === 'Job')
-  ) {
-    setTimeout(
-      () => finishJobPod(podName, namespace),
-      JOB_COMPLETION_DELAY_MS
-    )
+  if (current.metadata.ownerReferences?.some((reference) => reference.kind === 'Job')) {
+    setTimeout(() => finishJobPod(podName, namespace), JOB_COMPLETION_DELAY_MS)
   }
 
   syncDaemonSetStatusForPod(current)
@@ -185,20 +180,13 @@ function finishContainerCreation(podName: string, namespace: string | undefined)
  * 新 Pod Ready（或明确失败）后重新唤醒 Deployment 控制器。
  * 每次只推进一个受 maxSurge/maxUnavailable 约束的批次。
  */
-function continueDeploymentRollout(
-  pod: Pod,
-  namespace: string | undefined
-): void {
+function continueDeploymentRollout(pod: Pod, namespace: string | undefined): void {
   const ownerReference = pod.metadata.ownerReferences?.find(
     (reference) => reference.kind === 'ReplicaSet'
   )
   if (!ownerReference) return
   syncReplicaSetStatus(ownerReference.name, namespace)
-  const replicaSet = getResource<ReplicaSet>(
-    'ReplicaSet',
-    ownerReference.name,
-    namespace
-  )
+  const replicaSet = getResource<ReplicaSet>('ReplicaSet', ownerReference.name, namespace)
   const deploymentReference = replicaSet?.metadata.ownerReferences?.find(
     (reference) => reference.kind === 'Deployment'
   )

@@ -157,7 +157,9 @@ describe('Deployment 控制器', () => {
   it('修改镜像后会让新旧 ReplicaSet 共存，并按 maxSurge 分批替换 Pod', async () => {
     createWebDeployment(2)
     await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS + 50)
-    const oldPodNames = listResources<Pod>('Pod', 'default').map((pod) => pod.metadata.name)
+    const oldPodNames = listResources<Pod>('Pod', 'default').map(
+      (pod) => pod.metadata.name
+    )
 
     updateResource<Deployment>('Deployment', 'web', 'default', (current) => ({
       ...current,
@@ -172,8 +174,12 @@ describe('Deployment 控制器', () => {
 
     const firstBatch = listResources<Pod>('Pod', 'default')
     expect(firstBatch).toHaveLength(3)
-    expect(firstBatch.filter((pod) => oldPodNames.includes(pod.metadata.name))).toHaveLength(2)
-    expect(firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:1.28')).toHaveLength(1)
+    expect(
+      firstBatch.filter((pod) => oldPodNames.includes(pod.metadata.name))
+    ).toHaveLength(2)
+    expect(
+      firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:1.28')
+    ).toHaveLength(1)
     const replicaSetsDuringRollout = listResources<ReplicaSet>('ReplicaSet', 'default')
     expect(replicaSetsDuringRollout).toHaveLength(2)
     expect(
@@ -189,20 +195,24 @@ describe('Deployment 控制器', () => {
     expect(
       finishedPods.every(
         (pod) =>
-          pod.status.phase === 'Running' &&
-          pod.spec.containers[0].image === 'nginx:1.28'
+          pod.status.phase === 'Running' && pod.spec.containers[0].image === 'nginx:1.28'
       )
     ).toBe(true)
     const retainedReplicaSets = listResources<ReplicaSet>('ReplicaSet', 'default')
     expect(retainedReplicaSets).toHaveLength(2)
-    expect(retainedReplicaSets.find((replicaSet) =>
-      replicaSet.metadata.annotations?.['deployment.kubernetes.io/revision'] === '1'
-    )?.spec.replicas).toBe(0)
-    expect(getResource<Deployment>('Deployment', 'web', 'default')?.status).toMatchObject({
-      condition: 'Available',
-      revision: 2,
-      updatedReplicas: 2,
-    })
+    expect(
+      retainedReplicaSets.find(
+        (replicaSet) =>
+          replicaSet.metadata.annotations?.['deployment.kubernetes.io/revision'] === '1'
+      )?.spec.replicas
+    ).toBe(0)
+    expect(getResource<Deployment>('Deployment', 'web', 'default')?.status).toMatchObject(
+      {
+        condition: 'Available',
+        revision: 2,
+        updatedReplicas: 2,
+      }
+    )
   })
 
   it('支持百分比 maxSurge/maxUnavailable，并在新镜像失败时保留旧版本可用', async () => {
@@ -225,16 +235,21 @@ describe('Deployment 控制器', () => {
 
     const firstBatch = listResources<Pod>('Pod', 'default')
     expect(firstBatch).toHaveLength(4)
-    expect(firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:1.27')).toHaveLength(3)
-    expect(firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:not-exist')).toHaveLength(1)
+    expect(
+      firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:1.27')
+    ).toHaveLength(3)
+    expect(
+      firstBatch.filter((pod) => pod.spec.containers[0].image === 'nginx:not-exist')
+    ).toHaveLength(1)
 
     await vi.advanceTimersByTimeAsync(KUBELET_RUNNING_DELAY_MS * 2 + 50)
-    expect(getResource<Deployment>('Deployment', 'web', 'default')?.status.condition).toBe('Failed')
+    expect(
+      getResource<Deployment>('Deployment', 'web', 'default')?.status.condition
+    ).toBe('Failed')
     expect(
       listResources<Pod>('Pod', 'default').filter(
         (pod) =>
-          pod.spec.containers[0].image === 'nginx:1.27' &&
-          pod.status.phase === 'Running'
+          pod.spec.containers[0].image === 'nginx:1.27' && pod.status.phase === 'Running'
       ).length
     ).toBeGreaterThanOrEqual(3)
     expect(deployment.metadata.name).toBe('web')
@@ -276,9 +291,8 @@ describe('Deployment 控制器', () => {
 
 describe('Deployment 控制器 - 领域事件', () => {
   it('扩缩容时会广播 DEPLOYMENT_SCALED 领域事件', async () => {
-    const { subscribeDomainEvents, resetDomainEventListeners } = await import(
-      '@/simulation/event-bus/eventBus'
-    )
+    const { subscribeDomainEvents, resetDomainEventListeners } =
+      await import('@/simulation/event-bus/eventBus')
     useEtcdStore.getState().resetCluster()
     vi.useFakeTimers()
     seedNode()

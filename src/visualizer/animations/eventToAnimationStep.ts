@@ -32,7 +32,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'POD_SCHEDULE_PENDING': {
-      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.podName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [scheduler, podId],
@@ -41,7 +45,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'POD_SCHEDULED': {
-      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.podName,
+        event.payload.namespace
+      )
       const nodeId = buildResourceKey('Node', event.payload.nodeName)
       return {
         id: stepId,
@@ -53,7 +61,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'IMAGE_PULL_STARTED': {
-      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.podName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [podId],
@@ -62,7 +74,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'CONTAINER_STARTED': {
-      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.podName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [podId],
@@ -71,7 +87,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'POD_READY': {
-      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.podName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [podId],
@@ -80,8 +100,16 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'JOB_POD_CREATED': {
-      const jobId = buildResourceKey('Job', event.payload.jobName, event.payload.namespace)
-      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      const jobId = buildResourceKey(
+        'Job',
+        event.payload.jobName,
+        event.payload.namespace
+      )
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.podName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [controllerManager, jobId, podId],
@@ -91,7 +119,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
     }
     case 'JOB_COMPLETED':
     case 'JOB_FAILED': {
-      const jobId = buildResourceKey('Job', event.payload.jobName, event.payload.namespace)
+      const jobId = buildResourceKey(
+        'Job',
+        event.payload.jobName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [controllerManager, jobId],
@@ -108,7 +140,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
         event.payload.cronJobName,
         event.payload.namespace
       )
-      const jobId = buildResourceKey('Job', event.payload.jobName, event.payload.namespace)
+      const jobId = buildResourceKey(
+        'Job',
+        event.payload.jobName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [controllerManager, cronJobId, jobId],
@@ -119,7 +155,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'POD_IMAGE_PULL_FAILED': {
-      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.podName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [podId],
@@ -170,7 +210,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
         explanation: `Deployment ${event.payload.name} 的 Revision ${event.payload.revision} 发布失败，旧版本仍维持可用`,
       }
     case 'SERVICE_ENDPOINTS_UPDATED': {
-      const serviceId = buildResourceKey('Service', event.payload.name, event.payload.namespace)
+      const serviceId = buildResourceKey(
+        'Service',
+        event.payload.name,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [serviceId],
@@ -179,8 +223,16 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'SERVICE_REQUEST_SIMULATED': {
-      const serviceId = buildResourceKey('Service', event.payload.serviceName, event.payload.namespace)
-      const podId = buildResourceKey('Pod', event.payload.targetPodName, event.payload.namespace)
+      const serviceId = buildResourceKey(
+        'Service',
+        event.payload.serviceName,
+        event.payload.namespace
+      )
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.targetPodName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [serviceId, podId],
@@ -189,7 +241,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'PVC_BINDING_STARTED': {
-      const pvcId = buildResourceKey('PersistentVolumeClaim', event.payload.name, event.payload.namespace)
+      const pvcId = buildResourceKey(
+        'PersistentVolumeClaim',
+        event.payload.name,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [pvcId],
@@ -198,7 +254,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'PVC_BOUND': {
-      const pvcId = buildResourceKey('PersistentVolumeClaim', event.payload.name, event.payload.namespace)
+      const pvcId = buildResourceKey(
+        'PersistentVolumeClaim',
+        event.payload.name,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [pvcId],
@@ -216,7 +276,11 @@ export function eventToAnimationStep(event: DomainEvent): AnimationStep | null {
       }
     }
     case 'POD_RESCHEDULED': {
-      const podId = buildResourceKey('Pod', event.payload.podName, event.payload.namespace)
+      const podId = buildResourceKey(
+        'Pod',
+        event.payload.podName,
+        event.payload.namespace
+      )
       return {
         id: stepId,
         nodeIds: [podId],

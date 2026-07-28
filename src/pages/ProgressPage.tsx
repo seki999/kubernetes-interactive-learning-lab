@@ -31,7 +31,9 @@ export function ProgressPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const overallPercent = Math.round(
-    ((completedCourseIds.length + completedLabIds.length) / (COURSES.length + LABS.length)) * 100
+    ((completedCourseIds.length + completedLabIds.length) /
+      (COURSES.length + LABS.length)) *
+      100
   )
 
   const usedSubcommands = useMemo(() => {
@@ -44,7 +46,9 @@ export function ProgressPage() {
     }
     return used
   }, [commandHistory])
-  const commandMasteryPercent = Math.round((usedSubcommands.size / SUBCOMMANDS.length) * 100)
+  const commandMasteryPercent = Math.round(
+    (usedSubcommands.size / SUBCOMMANDS.length) * 100
+  )
 
   const usedResourceKinds = useMemo(
     () => new Set(Object.values(resources).map((resource) => resource.kind)),
@@ -102,7 +106,10 @@ export function ProgressPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="总体学习进度" value={`${overallPercent}%`} />
-        <StatCard label="课程完成率" value={`${completedCourseIds.length}/${COURSES.length}`} />
+        <StatCard
+          label="课程完成率"
+          value={`${completedCourseIds.length}/${COURSES.length}`}
+        />
         <StatCard label="实验完成率" value={`${completedLabIds.length}/${LABS.length}`} />
         <StatCard label="命令掌握率" value={`${commandMasteryPercent}%`} />
         <StatCard label="资源掌握情况" value={`${resourceMasteryPercent}%`} />

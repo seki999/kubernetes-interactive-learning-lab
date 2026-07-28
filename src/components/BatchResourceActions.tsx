@@ -18,13 +18,25 @@ export function BatchResourceActions({ cronJob }: { cronJob: CronJob }) {
         当前时间：{cronJob.status.simulatedTime}
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" onClick={trigger} className="rounded border border-violet-400 px-2 py-1 text-xs">
+        <button
+          type="button"
+          onClick={trigger}
+          className="rounded border border-violet-400 px-2 py-1 text-xs"
+        >
           手动触发
         </button>
-        <button type="button" onClick={() => advance(1)} className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => advance(1)}
+          className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+        >
           时间 +1 分钟
         </button>
-        <button type="button" onClick={() => advance(5)} className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => advance(5)}
+          className="rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+        >
           时间 +5 分钟
         </button>
       </div>

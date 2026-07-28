@@ -94,9 +94,7 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
   const pvs = resources.filter(
     (resource): resource is PersistentVolume => resource.kind === 'PersistentVolume'
   )
-  const jobs = resources.filter(
-    (resource): resource is Job => resource.kind === 'Job'
-  )
+  const jobs = resources.filter((resource): resource is Job => resource.kind === 'Job')
   const cronJobs = resources.filter(
     (resource): resource is CronJob => resource.kind === 'CronJob'
   )
@@ -167,8 +165,7 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
     const cronJob = owner
       ? cronJobs.find(
           (candidate) =>
-            candidate.metadata.uid === owner.uid ||
-            candidate.metadata.name === owner.name
+            candidate.metadata.uid === owner.uid || candidate.metadata.name === owner.name
         )
       : undefined
     if (cronJob) edges.push(edge(resourceKeyOf(cronJob), jobId))
@@ -186,14 +183,11 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
       .filter((candidate) =>
         candidate.metadata.ownerReferences?.some(
           (reference) =>
-            reference.kind === 'Deployment' &&
-            reference.uid === ownerReference?.uid
+            reference.kind === 'Deployment' && reference.uid === ownerReference?.uid
         )
       )
       .map((candidate) =>
-        Number(
-          candidate.metadata.annotations?.['deployment.kubernetes.io/revision'] ?? 0
-        )
+        Number(candidate.metadata.annotations?.['deployment.kubernetes.io/revision'] ?? 0)
       )
     const isCurrentRevision = revision === Math.max(0, ...siblingRevisions)
     nodes.push({

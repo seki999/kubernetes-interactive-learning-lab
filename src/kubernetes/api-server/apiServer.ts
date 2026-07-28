@@ -46,6 +46,7 @@ const RESOURCE_PATHS: Record<ResourceKind, string> = {
   CronJob: 'cronjobs',
   DaemonSet: 'daemonsets',
   HorizontalPodAutoscaler: 'horizontalpodautoscalers',
+  StatefulSet: 'statefulsets',
 }
 
 function apiUrl(resource: KubernetesResource): string {
@@ -68,9 +69,7 @@ function traceApiRequest(
     url: apiUrl(resource),
     headers: {
       'Content-Type':
-        method === 'PATCH'
-          ? 'application/apply-patch+yaml'
-          : 'application/json',
+        method === 'PATCH' ? 'application/apply-patch+yaml' : 'application/json',
       'X-Simulation-Mode': 'teaching',
     },
     requestBody: method === 'DELETE' ? undefined : resource,
@@ -107,10 +106,7 @@ function traceApiRequest(
   })
 }
 
-function traceValidation(
-  resource: KubernetesResource,
-  errors: string[]
-): void {
+function traceValidation(resource: KubernetesResource, errors: string[]): void {
   recordTraceStep({
     resource,
     component: 'api-server',
@@ -261,17 +257,17 @@ export function applyResource<T extends KubernetesResource>(resource: T): T {
   const applied = !existing
     ? createResource(resource)
     : updateResource<T>(
-    kind,
-    resource.metadata.name,
-    resource.metadata.namespace,
-    () => ({
-      ...resource,
-      metadata: {
-        ...existing.metadata,
-        ...resource.metadata,
-        resourceVersion: existing.metadata.resourceVersion,
-      },
-    })
+        kind,
+        resource.metadata.name,
+        resource.metadata.namespace,
+        () => ({
+          ...resource,
+          metadata: {
+            ...existing.metadata,
+            ...resource.metadata,
+            resourceVersion: existing.metadata.resourceVersion,
+          },
+        })
       )
   updateTraceHttp({
     method: 'PATCH',
@@ -307,7 +303,9 @@ function deleteResourceCascade(
   }
 
   const children = listAllResources().filter((candidate) =>
-    candidate.metadata.ownerReferences?.some((ref) => ref.uid === resource.metadata.uid)
+    candidate.metadata.ownerReferences?.some(
+      (ref: any) => ref.uid === resource.metadata.uid
+    )
   )
   for (const child of children) {
     deleteResourceCascade(
@@ -344,7 +342,7 @@ function deleteResourceCascade(
         candidate.kind === 'Pod' &&
         (candidate as Pod).status.nodeName === name &&
         (candidate as Pod).metadata.ownerReferences?.some(
-          (ref) => ref.kind === 'DaemonSet'
+          (ref: any) => ref.kind === 'DaemonSet'
         ) === true
     )
     for (const pod of daemonSetPodsOnNode) {
@@ -384,7 +382,7 @@ export function deleteResource(
   registerTraceResource(resource)
   traceApiRequest(resource, 'DELETE')
   const replicaSetOwnerRef = resource.metadata.ownerReferences?.find(
-    (ref) => ref.kind === 'ReplicaSet'
+    (ref: any) => ref.kind === 'ReplicaSet'
   )
 
   deleteResourceCascade(kind, name, namespace)

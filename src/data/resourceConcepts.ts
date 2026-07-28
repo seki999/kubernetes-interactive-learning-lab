@@ -220,26 +220,59 @@ export const RESOURCE_CONCEPTS: Record<ResourceKind, ResourceConcept> = {
     label: 'DaemonSet',
     scope: '命名空间级',
     role: '每节点常驻代理',
-    summary: '确保每一个符合条件的 Node 上都恰好运行一个 Pod，常用于日志采集、监控探针等节点级代理。',
+    summary:
+      '确保每一个符合条件的 Node 上都恰好运行一个 Pod，常用于日志采集、监控探针等节点级代理。',
     details:
       'Node 加入集群时 DaemonSet 自动在它上面创建 Pod，Node 被移除或不再符合 nodeSelector/Taint 条件时对应 Pod 也会被清理。它不关心"副本数"，只关心"每个匹配的 Node 是否都有一个"。',
     relationships: [
       { target: 'Node', description: '为每个符合条件的 Node 精确维持一个 Pod' },
-      { target: 'Pod', description: '直接创建并绑定 Pod 到目标 Node，不经过普通 Scheduler' },
-      { target: 'Taint / Toleration', description: '可通过节点污点排除或允许在特定 Node 上运行' },
+      {
+        target: 'Pod',
+        description: '直接创建并绑定 Pod 到目标 Node，不经过普通 Scheduler',
+      },
+      {
+        target: 'Taint / Toleration',
+        description: '可通过节点污点排除或允许在特定 Node 上运行',
+      },
     ],
   },
   HorizontalPodAutoscaler: {
     label: 'HorizontalPodAutoscaler (HPA)',
     scope: '命名空间级',
     role: '根据负载自动调整副本数',
-    summary: '持续观察目标 Deployment 的 CPU/内存使用率，在 minReplicas 和 maxReplicas 之间自动调整副本数。',
+    summary:
+      '持续观察目标 Deployment 的 CPU/内存使用率，在 minReplicas 和 maxReplicas 之间自动调整副本数。',
     details:
       '本项目用可控的 Metrics Simulator（而不是随机数）提供 CPU/内存使用率，方便在教学场景里演示"负载升高 → HPA 计算期望副本 → Deployment 扩容 → 新 Pod Running → 使用率回落"的完整链路，并简化模拟了冷却时间和缩容稳定窗口。',
     relationships: [
-      { target: 'Deployment', description: '通过 scaleTargetRef 指向要控制副本数的 Deployment' },
-      { target: 'Pod', description: '间接通过调整 Deployment.spec.replicas 影响 Pod 数量' },
-      { target: 'Metrics Simulator', description: '读取用户设置的可控负载画像，而不是随机 CPU 数据' },
+      {
+        target: 'Deployment',
+        description: '通过 scaleTargetRef 指向要控制副本数的 Deployment',
+      },
+      {
+        target: 'Pod',
+        description: '间接通过调整 Deployment.spec.replicas 影响 Pod 数量',
+      },
+      {
+        target: 'Metrics Simulator',
+        description: '读取用户设置的可控负载画像，而不是随机 CPU 数据',
+      },
+    ],
+  },
+  StatefulSet: {
+    label: 'StatefulSet',
+    scope: '命名空间级',
+    role: '有状态应用管理',
+    summary: '管理一组具有稳定身份标识、持久化存储和有序部署/扩缩容的 Pod。',
+    details:
+      'Pod 名称有固定序号，支持有序创建和删除。每个 Pod 可通过 volumeClaimTemplates 自动创建独立的 PVC，即使 Pod 被重建也会绑定原有的持久化数据。',
+    relationships: [
+      { target: 'Pod', description: '创建按序号命名的 Pod，且具有稳定网络标识' },
+      {
+        target: 'Service',
+        description: '通常配合 Headless Service 提供基于 DNS 的稳定访问',
+      },
+      { target: 'PersistentVolumeClaim', description: '为每个 Pod 独立申请持久化卷' },
     ],
   },
 }

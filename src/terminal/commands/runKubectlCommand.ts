@@ -12,7 +12,13 @@ import {
   runLabel,
   runAnnotate,
 } from './nodeOps'
-import { runConfig, runApiResources, runExplain, runVersion, runClusterInfo } from './metaCommands'
+import {
+  runConfig,
+  runApiResources,
+  runExplain,
+  runVersion,
+  runClusterInfo,
+} from './metaCommands'
 import { runLogs, runTop } from './logsTop'
 import { runExec, runEdit, runAuth, runDiff } from './notImplemented'
 import { runRollout } from './rollout'

@@ -19,8 +19,7 @@ export interface ApplyYamlResult {
 export function applyYaml(source: string): ApplyYamlResult {
   const inheritedTraceId = getActiveTraceId()
   const traceId =
-    inheritedTraceId ??
-    startKubernetesTrace({ source: 'yaml-lab', command: '应用 YAML' })
+    inheritedTraceId ?? startKubernetesTrace({ source: 'yaml-lab', command: '应用 YAML' })
   const ownsTrace = inheritedTraceId === undefined
   recordTraceStep({
     traceId,

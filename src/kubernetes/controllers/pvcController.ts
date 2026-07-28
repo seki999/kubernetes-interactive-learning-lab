@@ -1,7 +1,4 @@
-import {
-  listResources,
-  patchResourceRaw,
-} from '@/kubernetes/api-server/objectStore'
+import { listResources, patchResourceRaw } from '@/kubernetes/api-server/objectStore'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { parseMemoryToMebibytes } from '@/kubernetes/scheduler/resourceUnits'
@@ -59,10 +56,15 @@ function tryBindPvc(pvc: PersistentVolumeClaim): void {
       status: { phase: 'Bound', volumeName: matched.metadata.name },
     })
   )
-  patchResourceRaw<PersistentVolume>('PersistentVolume', matched.metadata.name, undefined, (current) => ({
-    ...current,
-    status: { phase: 'Bound' },
-  }))
+  patchResourceRaw<PersistentVolume>(
+    'PersistentVolume',
+    matched.metadata.name,
+    undefined,
+    (current) => ({
+      ...current,
+      status: { phase: 'Bound' },
+    })
+  )
   emitEvent({
     involvedObject: { kind: 'PersistentVolumeClaim', name: pvc.metadata.name, namespace },
     type: 'Normal',
@@ -82,9 +84,9 @@ export function reconcilePvc(pvc: PersistentVolumeClaim): void {
 
 /** PV 变化时调用：这个新 PV 可能刚好能匹配某个还在 Pending 的 PVC，逐个重新尝试。 */
 export function reconcilePv(): void {
-  const pendingPvcs = listResources<PersistentVolumeClaim>('PersistentVolumeClaim').filter(
-    (pvc) => pvc.status.phase !== 'Bound'
-  )
+  const pendingPvcs = listResources<PersistentVolumeClaim>(
+    'PersistentVolumeClaim'
+  ).filter((pvc) => pvc.status.phase !== 'Bound')
   for (const pvc of pendingPvcs) {
     tryBindPvc(pvc)
   }

@@ -23,7 +23,11 @@ const DEFAULT_CAPACITY: Required<ResourceList> = { cpu: '4', memory: '8Gi' }
 
 export function seedNode(
   name: string,
-  options: { labels?: Record<string, string>; taints?: Taint[]; capacity?: Required<ResourceList> } = {}
+  options: {
+    labels?: Record<string, string>
+    taints?: Taint[]
+    capacity?: Required<ResourceList>
+  } = {}
 ): Node {
   const capacity = options.capacity ?? DEFAULT_CAPACITY
   return createResource<Node>({

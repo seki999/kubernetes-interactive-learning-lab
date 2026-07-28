@@ -8,10 +8,7 @@ import {
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import type { Endpoints, Pod, Service } from '@/types/k8s'
-import {
-  recordTraceStep,
-  resourceReference,
-} from '@/simulation/trace/traceManager'
+import { recordTraceStep, resourceReference } from '@/simulation/trace/traceManager'
 
 function matchesSelector(pod: Pod, selector: Record<string, string>): boolean {
   const labels = pod.metadata.labels ?? {}

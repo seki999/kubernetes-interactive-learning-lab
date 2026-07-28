@@ -41,7 +41,9 @@ export function FaultLabPage() {
               >
                 {fault.title}
                 {!fault.interactive && (
-                  <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">（讲解）</span>
+                  <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">
+                    （讲解）
+                  </span>
                 )}
               </button>
             </li>
@@ -65,7 +67,15 @@ export function FaultLabPage() {
   )
 }
 
-function FaultDetail({ fault, isActive, schedulingPod }: { fault: Fault; isActive: boolean; schedulingPod?: Pod }) {
+function FaultDetail({
+  fault,
+  isActive,
+  schedulingPod,
+}: {
+  fault: Fault
+  isActive: boolean
+  schedulingPod?: Pod
+}) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -145,7 +155,8 @@ function FaultDetail({ fault, isActive, schedulingPod }: { fault: Fault; isActiv
       )}
 
       <p className="text-xs text-slate-400 dark:text-slate-500">
-        提示：可以打开"虚拟集群"或"kubectl 终端"页面，同时观察 Events、日志和 describe 输出的变化。
+        提示：可以打开"虚拟集群"或"kubectl 终端"页面，同时观察 Events、日志和 describe
+        输出的变化。
       </p>
     </div>
   )

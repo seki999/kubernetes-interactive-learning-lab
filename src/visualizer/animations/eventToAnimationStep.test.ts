@@ -27,7 +27,10 @@ describe('eventToAnimationStep', () => {
   })
 
   it('RESOURCE_DELETED 不产生动画步骤', () => {
-    const step = eventToAnimationStep({ type: 'RESOURCE_DELETED', payload: { kind: 'Pod', name: 'web-1' } })
+    const step = eventToAnimationStep({
+      type: 'RESOURCE_DELETED',
+      payload: { kind: 'Pod', name: 'web-1' },
+    })
     expect(step).toBeNull()
   })
 

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { subscribeDomainEvents } from '@/simulation/event-bus/eventBus'
-import { useAnimationSettingsStore, getStepDurationMs } from '@/stores/useAnimationSettingsStore'
+import {
+  useAnimationSettingsStore,
+  getStepDurationMs,
+} from '@/stores/useAnimationSettingsStore'
 import { eventToAnimationStep, type AnimationStep } from './eventToAnimationStep'
 
 const EMPTY_STEP: AnimationStep = { id: '', nodeIds: [], edgeIds: [], explanation: '' }

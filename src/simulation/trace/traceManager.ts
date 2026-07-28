@@ -41,9 +41,7 @@ function id(prefix: string): string {
   return `${prefix}-${Date.now()}-${sequence}`
 }
 
-export function resourceReference(
-  resource: KubernetesResource
-): ResourceReference {
+export function resourceReference(resource: KubernetesResource): ResourceReference {
   return {
     kind: resource.kind,
     name: resource.metadata.name,
@@ -98,7 +96,7 @@ export function registerTraceResource(
       ? resourceTraceIds.get(referenceKey(resourceReference(parent)))
       : undefined) ??
     resource.metadata.ownerReferences
-      ?.map((owner) =>
+      ?.map((owner: any) =>
         resourceTraceIds.get(
           referenceKey({
             kind: owner.kind,
@@ -138,9 +136,7 @@ export function recordTraceStep(options: {
 }): void {
   const traceId =
     options.traceId ??
-    (options.resource
-      ? registerTraceResource(options.resource)
-      : getActiveTraceId())
+    (options.resource ? registerTraceResource(options.resource) : getActiveTraceId())
   if (!traceId) return
   const now = Date.now()
   const trace = useTraceStore

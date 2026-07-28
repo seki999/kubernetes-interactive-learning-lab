@@ -16,8 +16,17 @@ import {
   reconcileHpa,
   simulateSinglePodFailure,
 } from './hpaController'
-import { metricsProfileKey, useMetricsSimulatorStore } from '@/simulation/metrics/metricsSimulatorStore'
-import type { Deployment, HorizontalPodAutoscaler, K8sEvent, Node, Pod } from '@/types/k8s'
+import {
+  metricsProfileKey,
+  useMetricsSimulatorStore,
+} from '@/simulation/metrics/metricsSimulatorStore'
+import type {
+  Deployment,
+  HorizontalPodAutoscaler,
+  K8sEvent,
+  Node,
+  Pod,
+} from '@/types/k8s'
 
 function seedNode(name = 'node-1'): Node {
   return createResource<Node>({
@@ -37,7 +46,13 @@ function createWebDeployment(replicas: number, name = 'web'): Deployment {
   return createResource<Deployment>({
     apiVersion: 'apps/v1',
     kind: 'Deployment',
-    metadata: { uid: '', name, namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+    metadata: {
+      uid: '',
+      name,
+      namespace: 'default',
+      resourceVersion: '',
+      creationTimestamp: '',
+    },
     spec: {
       replicas,
       selector: { matchLabels: { app: name } },
@@ -45,12 +60,22 @@ function createWebDeployment(replicas: number, name = 'web'): Deployment {
         metadata: { labels: { app: name } },
         spec: {
           containers: [
-            { name, image: 'nginx:1.27', resources: { requests: { cpu: '100m', memory: '128Mi' } } },
+            {
+              name,
+              image: 'nginx:1.27',
+              resources: { requests: { cpu: '100m', memory: '128Mi' } },
+            },
           ],
         },
       },
     },
-    status: { replicas: 0, readyReplicas: 0, availableReplicas: 0, updatedReplicas: 0, condition: 'Progressing' },
+    status: {
+      replicas: 0,
+      readyReplicas: 0,
+      availableReplicas: 0,
+      updatedReplicas: 0,
+      condition: 'Progressing',
+    },
   })
 }
 
@@ -61,13 +86,25 @@ function createHpa(
   return createResource<HorizontalPodAutoscaler>({
     apiVersion: 'autoscaling/v2',
     kind: 'HorizontalPodAutoscaler',
-    metadata: { uid: '', name, namespace: 'default', resourceVersion: '', creationTimestamp: '' },
+    metadata: {
+      uid: '',
+      name,
+      namespace: 'default',
+      resourceVersion: '',
+      creationTimestamp: '',
+    },
     spec: {
       scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'web' },
       minReplicas: 1,
       maxReplicas: 10,
       metrics: [
-        { type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 50 } } },
+        {
+          type: 'Resource',
+          resource: {
+            name: 'cpu',
+            target: { type: 'Utilization', averageUtilization: 50 },
+          },
+        },
       ],
       ...overrides,
     },
@@ -90,10 +127,20 @@ describe('HPA 控制器', () => {
   it('CPU 使用率超过目标时立即扩容（首次扩容没有冷却限制）', () => {
     createWebDeployment(2)
     createHpa()
-    expect(getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')?.status.currentReplicas).toBe(2)
+    expect(
+      getResource<HorizontalPodAutoscaler>(
+        'HorizontalPodAutoscaler',
+        'web-hpa',
+        'default'
+      )?.status.currentReplicas
+    ).toBe(2)
 
     applyBurstTraffic('default', 'web') // cpuPercent -> 180%，desired = ceil(2 * 180/50) = 8
-    const hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    const hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.currentReplicas).toBe(8)
     expect(hpa?.status.desiredReplicas).toBe(8)
     expect(getResource<Deployment>('Deployment', 'web', 'default')?.spec.replicas).toBe(8)
@@ -103,40 +150,70 @@ describe('HPA 控制器', () => {
     createWebDeployment(2)
     createHpa()
     applyBurstTraffic('default', 'web') // cpuPercent -> 180%，立即扩容 2 -> 8，并记录 lastScaleTime = now
-    let hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    let hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.currentReplicas).toBe(8)
 
     adjustCpuLoad('default', 'web', 20) // cpuPercent -> 200，desired = ceil(8 * 200/50) = 32，clamp 到 maxReplicas=10
-    hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.desiredReplicas).toBe(10)
     expect(hpa?.status.currentReplicas).toBe(8) // 还在冷却时间内，不会立刻再次扩容
     expect(hpa?.status.message).toContain('冷却')
 
     vi.advanceTimersByTime(HPA_SCALE_COOLDOWN_MS + 100)
     applyRequestsPerSecond('default', 'web', 10) // 只是触发一次重新调谐，不改变 cpuPercent
-    hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.currentReplicas).toBe(10) // 冷却结束后，按最新指标扩容到位
   })
 
   it('缩容需要先经过稳定窗口，窗口内反复触发也不会立刻缩容', () => {
     createWebDeployment(6)
     createHpa({ minReplicas: 1 })
-    expect(getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')?.status.currentReplicas).toBe(6)
+    expect(
+      getResource<HorizontalPodAutoscaler>(
+        'HorizontalPodAutoscaler',
+        'web-hpa',
+        'default'
+      )?.status.currentReplicas
+    ).toBe(6)
 
     adjustCpuLoad('default', 'web', -40) // cpuPercent 50 -> 10，desired = ceil(6 * 10/50) = 2
-    let hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    let hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.currentReplicas).toBe(6) // 还没到稳定窗口，不缩容
     expect(hpa?.status.desiredReplicas).toBe(2)
     expect(hpa?.status.lowUtilizationSince).toBeDefined()
 
     vi.advanceTimersByTime(5_000)
     applyRequestsPerSecond('default', 'web', 5) // 重新触发一次调谐，指标没变
-    hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.currentReplicas).toBe(6) // 未到 20s 稳定窗口，仍然不缩容
 
     vi.advanceTimersByTime(HPA_SCALE_DOWN_STABILIZATION_MS)
     applyRequestsPerSecond('default', 'web', 6)
-    hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.currentReplicas).toBe(2)
     expect(hpa?.status.lowUtilizationSince).toBeUndefined()
   })
@@ -146,13 +223,21 @@ describe('HPA 控制器', () => {
     createHpa({ minReplicas: 3, maxReplicas: 5 })
 
     applyBurstTraffic('default', 'web') // desired 原始值远超过 5
-    let hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    let hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.currentReplicas).toBe(5)
     expect(hpa?.status.desiredReplicas).toBe(5)
 
     // 即使指标显示应该缩容到很低的副本数，desiredReplicas 也不会低于 minReplicas。
     adjustCpuLoad('default', 'web', -190)
-    hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.desiredReplicas).toBe(3)
   })
 
@@ -161,8 +246,20 @@ describe('HPA 控制器', () => {
     const hpa = createHpa({
       maxReplicas: 20,
       metrics: [
-        { type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 50 } } },
-        { type: 'Resource', resource: { name: 'memory', target: { type: 'Utilization', averageUtilization: 50 } } },
+        {
+          type: 'Resource',
+          resource: {
+            name: 'cpu',
+            target: { type: 'Utilization', averageUtilization: 50 },
+          },
+        },
+        {
+          type: 'Resource',
+          resource: {
+            name: 'memory',
+            target: { type: 'Utilization', averageUtilization: 50 },
+          },
+        },
       ],
     })
     // 直接操作 Metrics Simulator 的状态，保证一次 reconcile 里 cpu/memory 同时生效，
@@ -172,16 +269,26 @@ describe('HPA 控制器', () => {
     useMetricsSimulatorStore.getState().setMemoryPercent(key, 200) // desired(memory) = ceil(4*200/50) = 16
     reconcileHpa(hpa)
 
-    const updated = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    const updated = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(updated?.status.currentCPUUtilizationPercentage).toBe(60)
     expect(updated?.status.currentMemoryUtilizationPercentage).toBe(200)
     expect(updated?.status.desiredReplicas).toBe(16) // 取 cpu(5) 和 memory(16) 中更大的一个
   })
 
   it('扩缩容目标 Deployment 不存在时，记录 message 并发出 Warning Event', () => {
-    createHpa({ scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'ghost' } })
+    createHpa({
+      scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'ghost' },
+    })
 
-    const hpa = getResource<HorizontalPodAutoscaler>('HorizontalPodAutoscaler', 'web-hpa', 'default')
+    const hpa = getResource<HorizontalPodAutoscaler>(
+      'HorizontalPodAutoscaler',
+      'web-hpa',
+      'default'
+    )
     expect(hpa?.status.message).toContain('ghost')
     expect(hpa?.status.message).toContain('不存在')
 
@@ -200,7 +307,9 @@ describe('HPA 控制器', () => {
     await settle()
     expect(listResources<Pod>('Pod', 'default')).toHaveLength(2)
 
-    const originalUids = listResources<Pod>('Pod', 'default').map((pod) => pod.metadata.uid).sort()
+    const originalUids = listResources<Pod>('Pod', 'default')
+      .map((pod) => pod.metadata.uid)
+      .sort()
     const ok = simulateSinglePodFailure('default', 'web')
     expect(ok).toBe(true)
     // 删除后 ReplicaSet 会同步发现副本数不足并立即创建一个新 Pod 补位
