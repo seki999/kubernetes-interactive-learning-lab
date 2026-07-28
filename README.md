@@ -31,7 +31,7 @@
 - **`kubectl describe`**：对 Pod/Deployment/Service/Job/CronJob/DaemonSet/HorizontalPodAutoscaler 做了专门排版，其余资源类型用通用 YAML 展示代替。
 - **拖拽式设计器**：只支持"拖入创建资源 + 点击查看详情/删除 + 拖动调整位置"，不支持用连线建立资源关系、双击内联编辑、撤销重做，且暂不支持拖入 DaemonSet/HorizontalPodAutoscaler。
 - **`kubectl top` 的资源用量**：不是随机数，而是由"负载模拟"面板显式设置的可控指标（相对于容器 `resources.requests` 的百分比），和 HPA 扩缩容读取同一份数据；但仍然是用户手动设置的模拟值，不是真实采集的指标。
-- **HPA 是简化实现**：只支持 Deployment 作为 `scaleTargetRef`、只支持 Resource（CPU/内存）类型指标；冷却时间和缩容稳定窗口被压缩到几秒到几十秒（真实 Kubernetes 默认是几分钟级别），且没有后台定时轮询——只在负载画像变化时才重新计算，避免"刷新页面/休眠后行为不可复现"。
+- **HPA 是简化实现**：只支持 Deployment 作为 `scaleTargetRef`、支持 Resource (CPU/内存)、Pods (RPS)、Object 和 External 类型指标；实现了 HPA 的自动轮询、容忍区间、扩缩容策略 (scaleUp/scaleDown policies) 和选择策略；教学简化：冷却时间和缩容稳定窗口被压缩到几秒到几十秒（真实 Kubernetes 默认是几分钟级别），且没有后台定时轮询——只在负载画像变化时才重新计算，避免"刷新页面/休眠后行为不可复现"。
 
 ## 技术栈
 

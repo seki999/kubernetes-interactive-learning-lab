@@ -26,6 +26,17 @@ export * from './event'
 export * from './job'
 export * from './daemonset'
 export * from './hpa'
+export type {
+  HPAScalingPolicy,
+  HPAScalingRules,
+  HorizontalPodAutoscalerBehavior,
+  MetricIdentifier,
+  MetricTarget,
+  HpaPodsMetric,
+  HpaObjectMetric,
+  HpaExternalMetric,
+  HpaMetricSpec,
+} from './hpa'
 export * from './statefulset'
 
 /**

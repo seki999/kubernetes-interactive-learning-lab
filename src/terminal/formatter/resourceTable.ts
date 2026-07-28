@@ -197,18 +197,38 @@ function buildResourceRows(
         'AGE',
       ])
       const rows = hpas.map((hpa) => {
-        const cpuMetric = hpa.spec.metrics.find(
-          (metric) => metric.resource.name === 'cpu'
-        )
-        const targets =
-          hpa.status.currentCPUUtilizationPercentage !== undefined && cpuMetric
-            ? `${hpa.status.currentCPUUtilizationPercentage}%/${cpuMetric.resource.target.averageUtilization}%`
-            : '<unknown>/' + `${cpuMetric?.resource.target.averageUtilization ?? '-'}%`
+        const cpuMetric = (hpa.spec.metrics || []).find(
+          (metric) => metric.type === 'Resource' && metric.resource.name === 'cpu'
+        ) as
+          Extract<import('@/types/k8s').HpaMetricSpec, { type: 'Resource' }> | undefined
+        const memMetric = (hpa.spec.metrics || []).find(
+          (metric) => metric.type === 'Resource' && metric.resource.name === 'memory'
+        ) as
+          Extract<import('@/types/k8s').HpaMetricSpec, { type: 'Resource' }> | undefined
+
+        const targets = []
+        if (cpuMetric)
+          targets.push(
+            hpa.status.currentCPUUtilizationPercentage !== undefined
+              ? `${hpa.status.currentCPUUtilizationPercentage}%/${cpuMetric.resource.target.averageUtilization}%`
+              : `<unknown>/${cpuMetric.resource.target.averageUtilization}%`
+          )
+        if (memMetric)
+          targets.push(
+            hpa.status.currentMemoryUtilizationPercentage !== undefined
+              ? `${hpa.status.currentMemoryUtilizationPercentage}%/${memMetric.resource.target.averageUtilization}%`
+              : `<unknown>/${memMetric.resource.target.averageUtilization}%`
+          )
+        const otherMetrics = (hpa.spec.metrics || []).filter((m) => m.type !== 'Resource')
+        if (otherMetrics.length > 0) targets.push(`<other>`)
+
+        const targetStr = targets.length > 0 ? targets.join(', ') : '<unknown>'
+
         return withNamespaceRow(hpa.metadata.namespace, [
           hpa.metadata.name,
-          `Deployment/${hpa.spec.scaleTargetRef.name}`,
-          targets,
-          String(hpa.spec.minReplicas),
+          `${hpa.spec.scaleTargetRef.kind}/${hpa.spec.scaleTargetRef.name}`,
+          targetStr,
+          String(hpa.spec.minReplicas ?? 1),
           String(hpa.spec.maxReplicas),
           String(hpa.status.currentReplicas),
           formatAge(hpa.metadata.creationTimestamp),
