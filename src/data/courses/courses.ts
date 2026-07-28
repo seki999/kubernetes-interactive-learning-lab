@@ -15,7 +15,9 @@
 import type { Course } from '@/types/course'
 import type {
   ConfigMap,
+  Container,
   Deployment,
+  EnvVar,
   HorizontalPodAutoscaler,
   Node,
   Namespace,
@@ -1104,7 +1106,7 @@ spec:
           (resource): resource is Pod =>
             resource.kind === 'Pod' &&
             resource.metadata.name === 'resource-demo' &&
-            resource.spec.containers.some((container: any) =>
+            resource.spec.containers.some((container: Container) =>
               Boolean(container.resources?.requests?.cpu)
             )
         ),
@@ -1172,7 +1174,7 @@ spec:
           (resource): resource is Pod =>
             resource.kind === 'Pod' &&
             resource.metadata.name === 'probe-demo' &&
-            resource.spec.containers.some((container: any) =>
+            resource.spec.containers.some((container: Container) =>
               Boolean(container.readinessProbe)
             )
         ),
@@ -1785,14 +1787,14 @@ maxSurge/maxUnavailable（支持整数和百分比）逐批扩新缩旧。旧 Re
         )
         if (!deployment) return false
         const usesNewImage = deployment.spec.template.spec.containers.some(
-          (container: any) => container.image === 'nginx:1.28'
+          (container: Container) => container.image === 'nginx:1.28'
         )
         const pods = resources.filter(
           (resource): resource is Pod =>
             resource.kind === 'Pod' &&
             resource.metadata.namespace === deployment.metadata.namespace &&
             resource.spec.containers.some(
-              (container: any) => container.image === 'nginx:1.28'
+              (container: Container) => container.image === 'nginx:1.28'
             )
         )
         return (
@@ -2118,9 +2120,9 @@ spec:
             resource.kind === 'Deployment' && resource.metadata.name === 'final-app'
         )
         const usesConfigMap = Boolean(
-          deployment?.spec.template.spec.containers.some((container: any) =>
+          deployment?.spec.template.spec.containers.some((container: Container) =>
             container.env?.some(
-              (env: any) => env.valueFromConfigMap?.name === 'final-app-config'
+              (env: EnvVar) => env.valueFromConfigMap?.name === 'final-app-config'
             )
           )
         )

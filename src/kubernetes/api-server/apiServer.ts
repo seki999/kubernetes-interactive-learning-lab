@@ -10,7 +10,7 @@ import {
   putResourceRaw,
   removeResourceRaw,
 } from './objectStore'
-import type { KubernetesResource, Pod, ResourceKind } from '@/types/k8s'
+import type { KubernetesResource, OwnerReference, Pod, ResourceKind } from '@/types/k8s'
 import {
   getActiveTraceId,
   recordTraceStep,
@@ -304,7 +304,7 @@ function deleteResourceCascade(
 
   const children = listAllResources().filter((candidate) =>
     candidate.metadata.ownerReferences?.some(
-      (ref: any) => ref.uid === resource.metadata.uid
+      (ref: OwnerReference) => ref.uid === resource.metadata.uid
     )
   )
   for (const child of children) {
@@ -342,7 +342,7 @@ function deleteResourceCascade(
         candidate.kind === 'Pod' &&
         (candidate as Pod).status.nodeName === name &&
         (candidate as Pod).metadata.ownerReferences?.some(
-          (ref: any) => ref.kind === 'DaemonSet'
+          (ref: OwnerReference) => ref.kind === 'DaemonSet'
         ) === true
     )
     for (const pod of daemonSetPodsOnNode) {
@@ -382,7 +382,7 @@ export function deleteResource(
   registerTraceResource(resource)
   traceApiRequest(resource, 'DELETE')
   const replicaSetOwnerRef = resource.metadata.ownerReferences?.find(
-    (ref: any) => ref.kind === 'ReplicaSet'
+    (ref: OwnerReference) => ref.kind === 'ReplicaSet'
   )
 
   deleteResourceCascade(kind, name, namespace)

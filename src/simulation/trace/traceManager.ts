@@ -1,7 +1,7 @@
 import { buildResourceKey } from '@/kubernetes/api-server/resourceKey'
 import { useTraceStore } from '@/stores/useTraceStore'
 import { subscribeDomainEventTap } from '@/simulation/event-bus/eventBus'
-import type { KubernetesResource, ResourceKind } from '@/types/k8s'
+import type { KubernetesResource, OwnerReference, ResourceKind } from '@/types/k8s'
 import type {
   KubernetesTrace,
   ResourceReference,
@@ -96,7 +96,7 @@ export function registerTraceResource(
       ? resourceTraceIds.get(referenceKey(resourceReference(parent)))
       : undefined) ??
     resource.metadata.ownerReferences
-      ?.map((owner: any) =>
+      ?.map((owner: OwnerReference) =>
         resourceTraceIds.get(
           referenceKey({
             kind: owner.kind,

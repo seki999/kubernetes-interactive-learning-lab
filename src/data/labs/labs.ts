@@ -13,11 +13,14 @@
 import { createResource, updateResource } from '@/kubernetes/api-server/apiServer'
 import type {
   ConfigMap,
+  Container,
   DaemonSet,
   Deployment,
   Endpoints,
+  EnvVar,
   HorizontalPodAutoscaler,
   Node,
+  OwnerReference,
   PersistentVolume,
   PersistentVolumeClaim,
   Pod,
@@ -504,10 +507,10 @@ spec:
           resource.kind === 'Pod' && resource.metadata.name === 'probe-demo'
       )
       if (!pod) return { passed: false, message: `还没有找到名为 probe-demo 的 Pod。` }
-      const hasReadiness = pod.spec.containers.some((container: any) =>
+      const hasReadiness = pod.spec.containers.some((container: Container) =>
         Boolean(container.readinessProbe)
       )
-      const hasLiveness = pod.spec.containers.some((container: any) =>
+      const hasLiveness = pod.spec.containers.some((container: Container) =>
         Boolean(container.livenessProbe)
       )
       if (!hasReadiness || !hasLiveness) {
@@ -551,7 +554,7 @@ spec:
       )
       if (!pod) return { passed: false, message: `还没有找到名为 resource-demo 的 Pod。` }
       const configured = pod.spec.containers.every(
-        (container: any) =>
+        (container: Container) =>
           container.resources?.requests?.cpu && container.resources?.limits?.cpu
       )
       if (!configured) {
@@ -920,7 +923,7 @@ spec:
       )
       if (!deployment) return { passed: false, message: `没有找到 web Deployment。` }
       const usesNewImage = deployment.spec.template.spec.containers.some(
-        (container: any) => container.image === 'nginx:1.28'
+        (container: Container) => container.image === 'nginx:1.28'
       )
       if (!usesNewImage) {
         return { passed: false, message: `web 的镜像还不是 nginx:1.28。` }
@@ -930,7 +933,7 @@ spec:
           resource.kind === 'Pod' &&
           resource.metadata.namespace === 'default' &&
           resource.spec.containers.some(
-            (container: any) => container.image === 'nginx:1.28'
+            (container: Container) => container.image === 'nginx:1.28'
           )
       )
       if (pods.length === 0 || !pods.every((pod) => pod.status.phase === 'Running')) {
@@ -997,7 +1000,7 @@ spec:
           resource.kind === 'Deployment' && resource.metadata.name === 'web'
       )
       const rolledBack = deployment?.spec.template.spec.containers.some(
-        (container: any) => container.image === 'nginx:1.27'
+        (container: Container) => container.image === 'nginx:1.27'
       )
       return rolledBack
         ? { passed: true, message: `web 已回滚到 nginx:1.27，新回滚版本正在滚动发布。` }
@@ -1446,9 +1449,9 @@ status:
           resource.kind === 'Deployment' && resource.metadata.name === 'final-app'
       )
       const usesConfigMap = Boolean(
-        deployment?.spec.template.spec.containers.some((container: any) =>
+        deployment?.spec.template.spec.containers.some((container: Container) =>
           container.env?.some(
-            (env: any) => env.valueFromConfigMap?.name === 'final-app-config'
+            (env: EnvVar) => env.valueFromConfigMap?.name === 'final-app-config'
           )
         )
       )
@@ -1593,7 +1596,7 @@ spec:
         (resource): resource is Job =>
           resource.kind === 'Job' &&
           resource.metadata.ownerReferences?.some(
-            (reference: any) =>
+            (reference: OwnerReference) =>
               reference.kind === 'CronJob' && reference.uid === cronJob.metadata.uid
           ) === true
       )
