@@ -9,6 +9,7 @@ import type { Secret } from './secret'
 import type { PersistentVolumeClaim, PersistentVolume } from './pvc'
 import type { Job, CronJob } from './job'
 import type { DaemonSet } from './daemonset'
+import type { Ingress } from './ingress'
 import type { HorizontalPodAutoscaler } from './hpa'
 import type { StatefulSet } from './statefulset'
 
@@ -38,6 +39,7 @@ export type {
   HpaMetricSpec,
 } from './hpa'
 export * from './statefulset'
+export * from './ingress'
 
 /**
  * 当前虚拟集群支持的资源种类。
@@ -45,7 +47,7 @@ export * from './statefulset'
  * Pod、Deployment、ReplicaSet、Service、Node、Namespace、ConfigMap、Secret、PVC，
  * 另外加上由 Service 控制器自动生成的 Endpoints、供 PVC 绑定使用的 PersistentVolume、
  * 以及后续阶段加入的 Job、CronJob、DaemonSet、HorizontalPodAutoscaler。
- * StatefulSet 尚未实现。
+
  */
 export type ResourceKind =
   | 'Pod'
@@ -64,12 +66,14 @@ export type ResourceKind =
   | 'DaemonSet'
   | 'HorizontalPodAutoscaler'
   | 'StatefulSet'
+  | 'Ingress'
 
 export type KubernetesResource =
   | Pod
   | Deployment
   | ReplicaSet
   | StatefulSet
+  | Ingress
   | Service
   | Endpoints
   | Node
@@ -99,6 +103,7 @@ export const ALL_RESOURCE_KINDS: ResourceKind[] = [
   'Deployment',
   'ReplicaSet',
   'StatefulSet',
+  'Ingress',
   'Service',
   'Endpoints',
   'Node',

@@ -275,4 +275,19 @@ export const RESOURCE_CONCEPTS: Record<ResourceKind, ResourceConcept> = {
       { target: 'PersistentVolumeClaim', description: '为每个 Pod 独立申请持久化卷' },
     ],
   },
+  Ingress: {
+    label: 'Ingress',
+    scope: '命名空间级',
+    role: 'HTTP/HTTPS 路由网关',
+    summary: '定义将外部 HTTP/HTTPS 路由到集群内 Service 的规则。',
+    details:
+      '基于域名 (Host) 和路径 (Path) 进行 7 层路由。Ingress 本身只是配置规则，实际的流量转发由 Ingress Controller (如 NGINX Ingress) 执行。本模拟器仅用于教学展示其配置结构。',
+    relationships: [
+      { target: 'Service', description: '作为后端，接收 Ingress 路由过来的流量' },
+      {
+        target: 'Ingress Controller',
+        description: '真实集群中实际执行 Ingress 规则的组件',
+      },
+    ],
+  },
 }

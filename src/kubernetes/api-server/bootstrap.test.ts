@@ -34,7 +34,9 @@ describe('完整示例集群与从零学习模式', () => {
 
     const resources = listAllResources()
     const kinds = new Set(resources.map((resource) => resource.kind))
-    const expectedKinds = new Set(ALL_RESOURCE_KINDS.filter((k) => k !== 'StatefulSet')) // since the seed data might not have statefulset yet
+    const expectedKinds = new Set(
+      ALL_RESOURCE_KINDS.filter((k) => k !== 'StatefulSet' && k !== 'Ingress')
+    ) // since the seed data might not have statefulset yet
     expect(kinds).toEqual(expectedKinds)
 
     const graph = buildTopologyGraph(resources)

@@ -6,6 +6,7 @@ export interface DiffEntry {
   path: string
   oldValue: unknown
   newValue: unknown
+  type?: 'Added' | 'Changed' | 'Removed' | 'Unchanged'
 }
 
 export interface ResourceDiffSummary {
@@ -67,8 +68,20 @@ export function buildResourceDiff(
 
   const entries: DiffEntry[] = []
   for (const key of keys) {
-    if (JSON.stringify(oldFlat[key]) !== JSON.stringify(newFlat[key])) {
-      entries.push({ path: key, oldValue: oldFlat[key], newValue: newFlat[key] })
+    const isOld = key in oldFlat
+    const isNew = key in newFlat
+    const oldVal = oldFlat[key]
+    const newVal = newFlat[key]
+
+    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      let type: 'Added' | 'Changed' | 'Removed' = 'Changed'
+      if (!isOld && isNew) type = 'Added'
+      else if (isOld && !isNew) type = 'Removed'
+
+      entries.push({ path: key, oldValue: oldVal, newValue: newVal, type })
+    } else {
+      // Optional: keep 'Unchanged' if needed by UI
+      // entries.push({ path: key, oldValue: oldVal, newValue: newVal, type: 'Unchanged' })
     }
   }
 

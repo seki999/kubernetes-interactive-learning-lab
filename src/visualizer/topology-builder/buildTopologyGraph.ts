@@ -17,6 +17,7 @@ import type {
   Service,
   Job,
   CronJob,
+  Ingress,
 } from '@/types/k8s'
 
 export interface TopologyGraph {
@@ -103,6 +104,37 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
     ...secrets,
     ...pvcs,
   ]
+
+  const ingresses = resources.filter(
+    (resource): resource is Ingress => resource.kind === 'Ingress'
+  )
+
+  ingresses.forEach((ingress, index) => {
+    const ingressId = resourceKeyOf(ingress)
+    nodes.push({
+      id: ingressId,
+      position: { x: 1040, y: 150 + index * 110 },
+      data: { label: `Ingress\n${ingress.metadata.name}` },
+      style: nodeBoxStyle('#fdf4ff', '#a21caf'),
+    })
+
+    const rules = ingress.spec.rules || []
+    rules.forEach((rule: import('@/types/k8s').IngressRule) => {
+      rule.http?.paths.forEach((path: import('@/types/k8s').HttpIngressPath) => {
+        if (path.backend?.service?.name) {
+          const serviceName = path.backend.service.name
+          const service = services.find(
+            (s) =>
+              s.metadata.name === serviceName &&
+              s.metadata.namespace === ingress.metadata.namespace
+          )
+          if (service) {
+            edges.push(edge(ingressId, resourceKeyOf(service), { animated: true }))
+          }
+        }
+      })
+    })
+  })
 
   namespaces.forEach((namespace, index) => {
     const namespaceId = resourceKeyOf(namespace)
@@ -368,6 +400,7 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
           resource.kind === 'PersistentVolumeClaim' ||
           resource.kind === 'Job' ||
           resource.kind === 'CronJob' ||
+          resource.kind === 'Ingress' ||
           (resource.kind === 'Pod' && !resource.metadata.ownerReferences?.length))
     )
     topLevelResidents.forEach((resource) => {

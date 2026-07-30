@@ -7,12 +7,12 @@ import {
 import { deleteResource } from '@/kubernetes/api-server/apiServer'
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { syncStatefulSetStatus } from './statusSync'
-import type { StatefulSet, Pod } from '@/types/k8s'
+import type { StatefulSet, Pod, PersistentVolumeClaim } from '@/types/k8s'
 import { recordTraceStep, resourceReference } from '@/simulation/trace/traceManager'
 
 function createPodForStatefulSet(statefulSet: StatefulSet, name: string): Pod {
   return {
-    apiVersion: 'v1',
+    apiVersion: 'v1' as const,
     kind: 'Pod',
     metadata: {
       uid: newUid(),
@@ -32,7 +32,11 @@ function createPodForStatefulSet(statefulSet: StatefulSet, name: string): Pod {
         },
       ],
     },
-    spec: statefulSet.spec.template.spec,
+    spec: {
+      ...statefulSet.spec.template.spec,
+      hostname: name,
+      subdomain: statefulSet.spec.serviceName,
+    },
     status: { phase: 'Pending', containerStatuses: [] },
   }
 }
@@ -48,6 +52,46 @@ export function reconcileStatefulSet(statefulSet: StatefulSet): void {
     const idxB = parseInt(b.metadata.name.split('-').pop() || '0')
     return idxA - idxB
   })
+
+  // Handle PVCs
+  if (statefulSet.spec.volumeClaimTemplates) {
+    statefulSet.spec.volumeClaimTemplates.forEach((template: PersistentVolumeClaim) => {
+      for (let i = 0; i < statefulSet.spec.replicas; i++) {
+        const pvcName = `${template.metadata?.name}-${statefulSet.metadata.name}-${i}`
+        const existingPvc = listResources('PersistentVolumeClaim', namespace).find(
+          (pvc) => pvc.metadata.name === pvcName
+        )
+
+        if (!existingPvc) {
+          const newPvc: PersistentVolumeClaim = {
+            apiVersion: 'v1',
+            kind: 'PersistentVolumeClaim' as const,
+            metadata: {
+              ...template.metadata,
+              uid: newUid(),
+              name: pvcName,
+              namespace,
+              creationTimestamp: nowIso(),
+              resourceVersion: '1',
+              ownerReferences: [
+                {
+                  apiVersion: statefulSet.apiVersion,
+                  kind: 'StatefulSet',
+                  name: statefulSet.metadata.name,
+                  uid: statefulSet.metadata.uid,
+                  controller: true,
+                  blockOwnerDeletion: true,
+                },
+              ],
+            },
+            spec: template.spec,
+            status: { phase: 'Pending' },
+          }
+          putResourceRaw(newPvc)
+        }
+      }
+    })
+  }
 
   let handledCreation = false
   for (let i = 0; i < statefulSet.spec.replicas; i++) {

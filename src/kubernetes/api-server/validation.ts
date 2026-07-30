@@ -1,4 +1,9 @@
-import type { Container, KubernetesResource } from '@/types/k8s'
+import type {
+  Container,
+  KubernetesResource,
+  IngressRule,
+  HttpIngressPath,
+} from '@/types/k8s'
 
 const DNS_1123_NAME = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/
 
@@ -99,6 +104,32 @@ export function validateResource(resource: KubernetesResource): string[] {
         errors.push(`${name} 必须是非负整数`)
       }
     }
+  }
+
+  if (resource.kind === 'StatefulSet') {
+    if (!resource.spec.serviceName) {
+      errors.push('StatefulSet 必须设置 serviceName')
+    }
+    if (
+      resource.spec.podManagementPolicy &&
+      !['OrderedReady', 'Parallel'].includes(resource.spec.podManagementPolicy)
+    ) {
+      errors.push('StatefulSet 的 podManagementPolicy 只能是 OrderedReady 或 Parallel')
+    }
+  }
+
+  if (resource.kind === 'Ingress') {
+    const rules = resource.spec.rules || []
+    rules.forEach((rule: IngressRule) => {
+      rule.http?.paths.forEach((path: HttpIngressPath) => {
+        if (!path.pathType) {
+          errors.push('Ingress 必须指定 pathType (Exact, Prefix, ImplementationSpecific)')
+        }
+        if (!path.backend?.service?.name) {
+          errors.push('Ingress 后端必须指定 service.name')
+        }
+      })
+    })
   }
 
   if (resource.kind === 'HorizontalPodAutoscaler') {

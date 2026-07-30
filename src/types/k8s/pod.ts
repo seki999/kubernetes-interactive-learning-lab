@@ -151,6 +151,8 @@ export interface SchedulerDecision {
 }
 
 export interface PodSpec {
+  hostname?: string
+  subdomain?: string
   containers: Container[]
   volumes?: Volume[]
   nodeSelector?: Record<string, string>

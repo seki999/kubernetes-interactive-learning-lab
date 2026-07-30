@@ -39,6 +39,8 @@ function LabRunnerBody({ lab }: { lab: (typeof LABS)[number] }) {
   const [revealedHints, setRevealedHints] = useState(0)
   const [showReference, setShowReference] = useState(false)
   const [result, setResult] = useState<LabCheckResult | null>(null)
+  const [startTime, setStartTime] = useState<number | null>(null)
+  const [incorrectChecks, setIncorrectChecks] = useState(0)
 
   useEffect(() => {
     touchStudyDay()
@@ -58,13 +60,51 @@ function LabRunnerBody({ lab }: { lab: (typeof LABS)[number] }) {
     setRevealedHints(0)
     setShowReference(false)
     setResult(null)
+    setStartTime(Date.now())
+    setIncorrectChecks(0)
   }
 
   function handleCheck() {
     const checkResult = lab.check(Object.values(resources))
     setResult(checkResult)
     if (checkResult.passed) {
-      markLabCompleted(lab.id, lab.scoreOnSuccess)
+      if (completed) return // Avoid overriding score
+
+      const baseScore = lab.scoreOnSuccess
+      const hintPenalty = revealedHints * 5
+      const viewAnswerPenalty = showReference ? 20 : 0
+      const incorrectCommandsPenalty = incorrectChecks * 2
+
+      const timeTakenSeconds = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0
+      const timePenalty =
+        timeTakenSeconds > 300
+          ? Math.min(20, Math.floor((timeTakenSeconds - 300) / 60))
+          : 0
+
+      const finalScore = Math.max(
+        0,
+        baseScore -
+          hintPenalty -
+          viewAnswerPenalty -
+          incorrectCommandsPenalty -
+          timePenalty
+      )
+
+      markLabCompleted(lab.id, finalScore, {
+        baseScore,
+        hintPenalty,
+        hintsUsed: revealedHints,
+        highestHintLevel: revealedHints,
+        timePenalty,
+        timeTakenSeconds,
+        oneClickRepairPenalty: 0,
+        viewAnswerPenalty,
+        incorrectCommandsPenalty,
+        incorrectCommands: incorrectChecks,
+        finalScore,
+      })
+    } else {
+      setIncorrectChecks((prev) => prev + 1)
     }
   }
 

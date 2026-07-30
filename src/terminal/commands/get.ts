@@ -13,6 +13,7 @@ const NAME_PREFIX_BY_KIND: Partial<Record<ResourceKind, string>> = {
   Deployment: 'deployment.apps/',
   ReplicaSet: 'replicaset.apps/',
   DaemonSet: 'daemonset.apps/',
+  Ingress: 'ingress.networking.k8s.io/',
 }
 
 export function runGet(argv: string[]): CommandOutput {

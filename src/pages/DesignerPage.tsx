@@ -10,6 +10,10 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { DndContext, useDroppable, type DragEndEvent } from '@dnd-kit/core'
+import { applyYaml } from '@/simulation/yaml/apply/applyYamlDocuments'
+import type { Edge as FlowEdge } from '@xyflow/react'
+import { dump } from 'js-yaml'
+
 import { useEtcdStore } from '@/kubernetes/api-server/store'
 import { createResource } from '@/kubernetes/api-server/apiServer'
 import { useDesignerLayoutStore } from '@/stores/useDesignerLayoutStore'
@@ -27,7 +31,10 @@ const PALETTE_ITEMS: PaletteEntry[] = [
   { kind: 'Namespace', label: 'Namespace' },
   { kind: 'Node', label: 'Node' },
   { kind: 'Deployment', label: 'Deployment' },
+  { kind: 'StatefulSet', label: 'StatefulSet' },
+  { kind: 'DaemonSet', label: 'DaemonSet' },
   { kind: 'Pod', label: 'Pod' },
+  { kind: 'HorizontalPodAutoscaler', label: 'HPA' },
   { kind: 'Service', label: 'Service' },
   { kind: 'ConfigMap', label: 'ConfigMap' },
   { kind: 'Secret', label: 'Secret' },
@@ -198,17 +205,99 @@ export function DesignerPage() {
     }
   }, [])
 
+  // Build edges based on relationships
+  const edges = useMemo(() => {
+    const newEdges: FlowEdge[] = []
+    const createEdge = (source: string, target: string, dashed = false): FlowEdge => ({
+      id: `e-${source}-${target}`,
+      source,
+      target,
+      style: dashed ? { strokeDasharray: '4 4' } : undefined,
+    })
+
+    const services = visibleResources.filter((r) => r.kind === 'Service')
+    const pods = visibleResources.filter((r) => r.kind === 'Pod')
+
+    services.forEach((svc) => {
+      const selector = (svc as import('@/types/k8s').Service).spec.selector
+      if (selector && Object.keys(selector).length > 0) {
+        pods.forEach((pod) => {
+          const labels = pod.metadata.labels || {}
+          const matches = Object.keys(selector).every((k) => labels[k] === selector[k])
+          if (matches) {
+            newEdges.push(createEdge(svc.metadata.uid, pod.metadata.uid))
+          }
+        })
+      }
+    })
+    return newEdges
+  }, [visibleResources])
+
   const selected = selectedUid
     ? Object.values(resources).find((resource) => resource.metadata.uid === selectedUid)
     : undefined
 
+  const handleExport = () => {
+    const yamlStr = visibleResources
+      .map((r) => {
+        const { ...rest } = r.metadata as unknown as { [key: string]: unknown }
+        delete rest.uid
+        delete rest.resourceVersion
+        delete rest.creationTimestamp
+        const cleaned = { ...r, metadata: rest }
+        return dump(cleaned)
+      })
+      .join('\n---\n')
+
+    const blob = new Blob([yamlStr], { type: 'text/yaml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'k8s-designer-export.yaml'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result as string
+      if (content) {
+        applyYaml(content)
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
   return (
     <div className="flex h-full flex-col gap-3">
-      <div>
-        <h1 className="text-xl font-bold">拖拽式架构设计器</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          从左侧拖入资源类型到画布创建资源；点击节点查看详情或删除；可以拖动节点调整位置。
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">拖拽式架构设计器</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            从左侧拖入资源类型到画布创建资源；点击节点查看详情或删除；可以拖动节点调整位置。
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <label className="cursor-pointer rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800">
+            导入 YAML
+            <input
+              type="file"
+              accept=".yaml,.yml"
+              className="hidden"
+              onChange={handleImport}
+            />
+          </label>
+          <button
+            onClick={handleExport}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+          >
+            导出 YAML
+          </button>
+        </div>
       </div>
 
       <DndContext onDragEnd={handleDragEnd}>
@@ -220,7 +309,7 @@ export function DesignerPage() {
               <CanvasDropZone>
                 <ReactFlow
                   nodes={nodes}
-                  edges={[]}
+                  edges={edges}
                   onNodesChange={handleNodesChange}
                   onNodeClick={(_, node) => setSelectedUid(node.id)}
                   onPaneClick={() => setSelectedUid(null)}

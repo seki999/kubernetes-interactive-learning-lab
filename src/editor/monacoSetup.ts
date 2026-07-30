@@ -17,3 +17,6 @@ import 'monaco-editor/languages/definitions/yaml/register'
 // 编辑，不依赖 Worker 才能工作的高级语言服务（如跨文件类型检查），
 // 缺少 Worker 时 Monaco 会自动退回主线程运行，仅在控制台打印提示，不影响使用。
 loader.config({ monaco })
+
+import { registerK8sHoverProvider } from './k8sHoverProvider'
+registerK8sHoverProvider()

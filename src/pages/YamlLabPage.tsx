@@ -183,8 +183,28 @@ export function YamlLabPage() {
                     <ul className="ml-4 list-disc text-slate-600 dark:text-slate-300">
                       {summary.entries.map((entry, entryIndex) => (
                         <li key={entryIndex}>
-                          {entry.path}：{JSON.stringify(entry.oldValue)} →{' '}
-                          {JSON.stringify(entry.newValue)}
+                          <span
+                            className={
+                              entry.type === 'Added'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : entry.type === 'Removed'
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-sky-600 dark:text-sky-400'
+                            }
+                          >
+                            [{entry.type}]
+                          </span>{' '}
+                          {entry.path}：
+                          {entry.type === 'Added' ? (
+                            JSON.stringify(entry.newValue)
+                          ) : entry.type === 'Removed' ? (
+                            JSON.stringify(entry.oldValue)
+                          ) : (
+                            <>
+                              {JSON.stringify(entry.oldValue)} →{' '}
+                              {JSON.stringify(entry.newValue)}
+                            </>
+                          )}
                         </li>
                       ))}
                     </ul>
