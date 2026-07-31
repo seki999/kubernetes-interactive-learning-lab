@@ -47,6 +47,7 @@ const RESOURCE_PATHS: Record<ResourceKind, string> = {
   DaemonSet: 'daemonsets',
   HorizontalPodAutoscaler: 'horizontalpodautoscalers',
   StatefulSet: 'statefulsets',
+  Ingress: 'ingresses',
 }
 
 function apiUrl(resource: KubernetesResource): string {

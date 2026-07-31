@@ -11,6 +11,9 @@ import type {
   Service,
   Job,
   CronJob,
+  StatefulSet,
+  DaemonSet,
+  HorizontalPodAutoscaler,
 } from '@/types/k8s'
 
 function randomSuffix(): string {
@@ -161,6 +164,92 @@ export function buildDefaultResource(kind: ResourceKind): KubernetesResource {
         },
         status: { active: [], simulatedTime: new Date().toISOString() },
       } satisfies CronJob
+
+    case 'StatefulSet':
+      return {
+        apiVersion: 'apps/v1',
+        kind: 'StatefulSet',
+        metadata: {
+          ...baseMeta,
+          name: `sts-${suffix}`,
+          namespace: 'default',
+          labels: { app: `sts-${suffix}` },
+        },
+        spec: {
+          replicas: 1,
+          selector: { matchLabels: { app: `sts-${suffix}` } },
+          serviceName: `svc-${suffix}`,
+          template: {
+            metadata: { labels: { app: `sts-${suffix}` } },
+            spec: { containers: [{ name: 'app', image: 'nginx:1.27' }] },
+          },
+        },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          currentReplicas: 0,
+          updatedReplicas: 0,
+        },
+      } satisfies StatefulSet
+
+    case 'DaemonSet':
+      return {
+        apiVersion: 'apps/v1',
+        kind: 'DaemonSet',
+        metadata: {
+          ...baseMeta,
+          name: `ds-${suffix}`,
+          namespace: 'default',
+          labels: { app: `ds-${suffix}` },
+        },
+        spec: {
+          selector: { matchLabels: { app: `ds-${suffix}` } },
+          template: {
+            metadata: { labels: { app: `ds-${suffix}` } },
+            spec: { containers: [{ name: 'app', image: 'nginx:1.27' }] },
+          },
+        },
+        status: {
+          currentNumberScheduled: 0,
+          numberMisscheduled: 0,
+          desiredNumberScheduled: 0,
+          numberReady: 0,
+          numberAvailable: 0,
+        },
+      } satisfies DaemonSet
+
+    case 'HorizontalPodAutoscaler':
+      return {
+        apiVersion: 'autoscaling/v2',
+        kind: 'HorizontalPodAutoscaler',
+        metadata: {
+          ...baseMeta,
+          name: `hpa-${suffix}`,
+          namespace: 'default',
+        },
+        spec: {
+          scaleTargetRef: {
+            apiVersion: 'apps/v1',
+            kind: 'Deployment',
+            name: `deploy-${suffix}`,
+          },
+          minReplicas: 1,
+          maxReplicas: 3,
+          metrics: [
+            {
+              type: 'Resource',
+              resource: {
+                name: 'cpu',
+                target: { type: 'Utilization', averageUtilization: 50 },
+              },
+            },
+          ],
+        },
+        status: {
+          currentReplicas: 0,
+          desiredReplicas: 0,
+        },
+      } satisfies HorizontalPodAutoscaler
 
     default:
       throw new Error(`设计器暂不支持创建 ${kind}`)

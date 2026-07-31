@@ -11,6 +11,8 @@ import type {
   Deployment,
   Endpoints,
   HorizontalPodAutoscaler,
+  StatefulSet,
+  Ingress,
   Job,
   K8sEvent,
   Pod,
@@ -259,6 +261,24 @@ function describeHpa(hpa: HorizontalPodAutoscaler): string[] {
   return lines
 }
 
+function describeStatefulSet(statefulSet: StatefulSet): string[] {
+  return [
+    `Name:               ${statefulSet.metadata.name}`,
+    `Namespace:          ${statefulSet.metadata.namespace ?? '-'}`,
+    `Selector:           ${formatLabels(statefulSet.spec.selector.matchLabels)}`,
+    `Replicas:           ${statefulSet.spec.replicas} desired | ${statefulSet.status?.readyReplicas || 0} ready`,
+    `Pod Management:     ${statefulSet.spec.podManagementPolicy || 'OrderedReady'}`,
+    `Service Name:       ${statefulSet.spec.serviceName}`,
+    `Volume Claims:      ${statefulSet.spec.volumeClaimTemplates?.map((c) => c.metadata.name).join(', ') || '<none>'}`,
+    '',
+    ...describeEvents(
+      'StatefulSet',
+      statefulSet.metadata.name,
+      statefulSet.metadata.namespace
+    ),
+  ]
+}
+
 function formatLabels(labels: Record<string, string> | undefined): string {
   if (!labels || Object.keys(labels).length === 0) {
     return '<none>'
@@ -309,6 +329,10 @@ export function runDescribe(argv: string[]): CommandOutput {
       lines.push(...describeDaemonSet(resource as DaemonSet))
     } else if (resource!.kind === 'HorizontalPodAutoscaler') {
       lines.push(...describeHpa(resource as HorizontalPodAutoscaler))
+    } else if (resource!.kind === 'StatefulSet') {
+      lines.push(...describeStatefulSet(resource as StatefulSet))
+    } else if (resource!.kind === 'Ingress') {
+      lines.push(...describeIngress(resource as Ingress))
     } else {
       // 其余资源类型暂时用通用的 YAML 展示代替专门的 describe 排版。
       lines.push(
@@ -320,4 +344,45 @@ export function runDescribe(argv: string[]): CommandOutput {
   })
 
   return ok(lines)
+}
+
+function describeIngress(ingress: Ingress): string[] {
+  const lines: string[] = []
+  lines.push(`Name:             ${ingress.metadata.name}`)
+  lines.push(`Namespace:        ${ingress.metadata.namespace ?? '-'}`)
+  lines.push(
+    `Address:          ${ingress.status?.loadBalancer?.ingress?.map((i: { ip?: string; hostname?: string }) => i.ip || i.hostname).join(', ') || '<none>'}`
+  )
+  lines.push(
+    `Default backend:  ${ingress.spec.defaultBackend ? `${ingress.spec.defaultBackend.service?.name}:${ingress.spec.defaultBackend.service?.port?.number || '<none>'}` : '<default>'}`
+  )
+  lines.push('Rules:')
+  lines.push('  Host        Path  Backends')
+  lines.push('  ----        ----  --------')
+
+  const rules = ingress.spec.rules || []
+  if (rules.length === 0) {
+    lines.push('  *           *     <none>')
+  } else {
+    for (const rule of rules) {
+      const host = rule.host || '*'
+      if (!rule.http || !rule.http.paths || rule.http.paths.length === 0) {
+        lines.push(`  ${host.padEnd(12)} *     <none>`)
+        continue
+      }
+      for (const path of rule.http.paths) {
+        const pathStr = path.path || '*'
+        const backendStr = path.backend?.service
+          ? `${path.backend.service.name}:${path.backend.service.port?.number || '<none>'}`
+          : '<none>'
+        lines.push(`  ${host.padEnd(12)} ${pathStr.padEnd(6)} ${backendStr}`)
+      }
+    }
+  }
+
+  lines.push('')
+  lines.push(
+    ...describeEvents('Ingress', ingress.metadata.name, ingress.metadata.namespace)
+  )
+  return lines
 }

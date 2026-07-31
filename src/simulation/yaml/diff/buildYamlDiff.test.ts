@@ -43,7 +43,12 @@ spec:
     const replicaChange = preview.summaries[0].entries.find(
       (entry) => entry.path === 'spec.replicas'
     )
-    expect(replicaChange).toEqual({ path: 'spec.replicas', oldValue: 2, newValue: 5 })
+    expect(replicaChange).toEqual({
+      path: 'spec.replicas',
+      oldValue: 2,
+      newValue: 5,
+      type: 'Changed',
+    })
   })
 
   it('没有变化时 changeType 为 no-change', () => {

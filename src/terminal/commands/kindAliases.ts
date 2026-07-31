@@ -45,6 +45,8 @@ export const KIND_ALIASES: Record<string, ResourceKind> = {
   horizontalpodautoscaler: 'HorizontalPodAutoscaler',
   horizontalpodautoscalers: 'HorizontalPodAutoscaler',
   hpa: 'HorizontalPodAutoscaler',
+  ingress: 'Ingress',
+  ing: 'Ingress',
 }
 
 /** kubectl get all 会展示的资源类型（贴近真实 kubectl 的默认范围）。 */

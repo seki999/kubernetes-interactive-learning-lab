@@ -37,7 +37,7 @@ import type {
  * 当前接入的控制器：Deployment、ReplicaSet、Service（Endpoint 控制器）、
  * PersistentVolumeClaim/PersistentVolume（绑定控制器）、Node（故障重新调度 +
  * DaemonSet 重新调谐）、DaemonSet、HorizontalPodAutoscaler，以及 Pod 创建后
- * 触发的 Scheduler、Job、CronJob。StatefulSet 尚未实现，会在后续阶段补充。
+ * 触发的 Scheduler、Job、CronJob、StatefulSet。
  */
 export function runControllersFor(
   kind: ResourceKind,

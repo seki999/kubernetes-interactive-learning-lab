@@ -13,18 +13,33 @@ export interface QuizResult {
   total: number
 }
 
+export interface LabScoreDetail {
+  baseScore: number
+  hintPenalty: number
+  hintsUsed: number
+  highestHintLevel: number
+  timePenalty: number
+  timeTakenSeconds: number
+  oneClickRepairPenalty: number
+  viewAnswerPenalty: number
+  incorrectCommandsPenalty: number
+  incorrectCommands: number
+  finalScore: number
+}
+
 interface ProgressState {
   completedCourseIds: string[]
   quizResults: Record<string, QuizResult>
   completedLabIds: string[]
   labScores: Record<string, number>
+  labScoreDetails: Record<string, LabScoreDetail>
   /** 最近一次学习日期（YYYY-MM-DD），用于计算连续学习天数。 */
   lastStudyDate: string | null
   streakDays: number
 
   markCourseCompleted: (courseId: string) => void
   recordQuizResult: (courseId: string, result: QuizResult) => void
-  markLabCompleted: (labId: string, score: number) => void
+  markLabCompleted: (labId: string, score: number, detail?: LabScoreDetail) => void
   /** 每次打开课程或实验页面时调用一次，更新"今天学习了"这件事并维护连续天数。 */
   touchStudyDay: () => void
   resetProgress: () => void
@@ -44,6 +59,7 @@ const initialState = {
   quizResults: {} as Record<string, QuizResult>,
   completedLabIds: [] as string[],
   labScores: {} as Record<string, number>,
+  labScoreDetails: {} as Record<string, LabScoreDetail>,
   lastStudyDate: null as string | null,
   streakDays: 0,
 }
@@ -65,12 +81,15 @@ export const useProgressStore = create<ProgressState>()(
           quizResults: { ...state.quizResults, [courseId]: result },
         })),
 
-      markLabCompleted: (labId, score) =>
+      markLabCompleted: (labId, score, detail) =>
         set((state) => ({
           completedLabIds: state.completedLabIds.includes(labId)
             ? state.completedLabIds
             : [...state.completedLabIds, labId],
           labScores: { ...state.labScores, [labId]: score },
+          labScoreDetails: detail
+            ? { ...state.labScoreDetails, [labId]: detail }
+            : state.labScoreDetails,
         })),
 
       touchStudyDay: () =>
