@@ -6,11 +6,13 @@
 // 系统读取当前虚拟集群状态自动判断是否达成，这样课程操作才能真正
 // 关联到虚拟集群，而不是自我报告"我做完了"。
 //
-// 诚实说明：StatefulSet / Ingress / PDB / RBAC / ServiceAccount /
-// NetworkPolicy 这些资源类型当前虚拟集群尚未实现
-// （见 src/types/k8s/index.ts 的 ResourceKind），对应课程仍然提供完整的
-// 概念讲解、架构图、命令示例和 YAML 示例，但没有 verification 字段——
-// 这些课程只是"讲解型"课程，暂不支持在本模拟器里直接操作验证。
+// 诚实说明：PDB / RBAC / ServiceAccount / NetworkPolicy 这些资源类型当前
+// 虚拟集群尚未实现（见 src/types/k8s/index.ts 的 ResourceKind），对应课程
+// 仍然提供完整的概念讲解、架构图、命令示例和 YAML 示例，但没有 verification
+// 字段——这些课程只是"讲解型"课程，暂不支持在本模拟器里直接操作验证。
+// Ingress 已实现轻量版：可创建、会校验引用的 backend Service 是否存在、
+// 会在拓扑图里展示，但不运行真实的 Ingress Controller，不做实际的 HTTP
+// 路由转发。
 
 import type { Course } from '@/types/course'
 import type {
@@ -27,6 +29,8 @@ import type {
   Service,
   Job,
   CronJob,
+  StatefulSet,
+  Ingress,
 } from '@/types/k8s'
 
 export const COURSES: Course[] = [
@@ -495,9 +499,12 @@ spec:
 把流量分发给不同的后端服务"时（例如 a.example.com 转发到服务 A，
 b.example.com/api 转发到服务 B），就需要 Ingress。Ingress 本身只是路由规则，
 真正执行转发的是 Ingress Controller。`,
-      `诚实说明：本模拟器当前版本尚未实现 Ingress 资源类型和对应的路由模拟，
-这一课先讲清楚概念和 YAML 结构，暂时无法在虚拟集群里创建真实的 Ingress
-资源进行练习，这属于后续版本的开发计划。`,
+      `诚实说明：本模拟器实现的是轻量版 Ingress——可以创建资源、控制器会校验
+每条规则和 defaultBackend 引用的 backend Service 是否存在（不存在时会在
+Events 里看到 BackendServiceMissing 警告，并在 status 里看到提示信息），
+拓扑图也会画出 Ingress → Service 的连线。但不运行真实的 Ingress
+Controller，不做实际的 HTTP(S) 流量转发或 TLS 终止，也不分配负载均衡器
+地址（describe 里的 Address 始终是 <none>）。`,
     ],
     diagram: [
       { label: `浏览器请求`, description: `携带域名和路径` },
@@ -507,6 +514,8 @@ b.example.com/api 转发到服务 B），就需要 Ingress。Ingress 本身只�
     ],
     steps: [
       `阅读下面的 Ingress YAML 示例，理解 host / path / backend service 的对应关系`,
+      `先创建一个名为 web-svc 的 Service，再应用下面的 Ingress YAML，观察 Events 里没有出现 BackendServiceMissing 警告`,
+      `尝试把 backend service 的名字改成一个不存在的名字重新应用，观察 kubectl describe ingress 里 Status 的变化`,
       `对比这一课和"Service"一课，思考什么场景需要 Ingress、什么场景只用 Service 就够了`,
     ],
     commandExamples: [`kubectl get ingress`, `kubectl describe ingress web-ingress`],
@@ -526,6 +535,16 @@ spec:
                 name: web-svc
                 port:
                   number: 80`,
+    verification: {
+      instruction: `先创建一个名为 web-svc 的 Service，再应用上面的 Ingress YAML（名为 web-ingress），让它引用的 backend Service 校验通过`,
+      verify: (resources) =>
+        resources.some(
+          (resource): resource is Ingress =>
+            resource.kind === 'Ingress' &&
+            resource.metadata.name === 'web-ingress' &&
+            !resource.status.message
+        ),
+    },
     quiz: [
       {
         question: `Ingress 主要解决什么问题？`,
@@ -541,9 +560,10 @@ spec:
     ],
     commonMistakes: [
       `把 Ingress 当作可以直接替代所有 Service 的东西——它依赖 Service 才能工作，二者不是互斥关系`,
+      `backend 引用的 Service 名字写错或还没创建——本模拟器会在 Events 和 describe 里提示，但不会阻止 Ingress 本身被创建`,
     ],
     summary: `Ingress 是集群的"HTTP 网关"，按域名/路径路由到不同 Service。
-本模拟器暂未实现该资源类型，这里先建立概念基础。`,
+本模拟器会校验引用的 Service 是否存在并在拓扑图里展示，但不做真实的流量转发。`,
   },
 
   {
@@ -794,17 +814,24 @@ Label 打错一个字符就会导致关联失效，需要格外小心。`,
 mysql-1）和各自独立、不随 Pod 重建而丢失的存储卷，这就是 StatefulSet
 存在的意义：提供稳定的网络标识（Pod 名称固定编号）和稳定的持久化存储
 （每个副本绑定各自的 PVC）。`,
-      `诚实说明：本模拟器当前版本尚未实现 StatefulSet 资源类型，这一课先建立
-概念基础，后续版本计划中会补充这一部分的模拟实现。`,
+      `本模拟器已经支持创建 StatefulSet：Pod 会按 mysql-0、mysql-1... 固定序号
+命名，单独删除某一个会用相同的名字重建（身份不变）。诚实说明：本模拟器是
+轻量实现——不模拟真实 StatefulSet 默认"必须等前一个 Pod Ready 才创建下
+一个"的有序生命周期（一次调谐会把缺失序号的 Pod 一次性创建齐），也不模拟
+volumeClaimTemplates 自动生成每个副本独立的 PVC。`,
     ],
     diagram: [
-      { label: `StatefulSet`, description: `按顺序创建/删除 Pod` },
-      { label: `mysql-0 + PVC-0`, description: `固定身份 + 固定存储` },
-      { label: `mysql-1 + PVC-1`, description: `固定身份 + 固定存储` },
+      {
+        label: `StatefulSet`,
+        description: `按固定序号创建 Pod（本模拟器不等待、一次性创建齐）`,
+      },
+      { label: `mysql-0`, description: `固定身份，删除后原名重建` },
+      { label: `mysql-1`, description: `固定身份，删除后原名重建` },
     ],
     steps: [
       `阅读下面的 StatefulSet YAML 示例`,
       `对比它和 Deployment YAML 的差异：多了 serviceName 和 volumeClaimTemplates`,
+      `应用后用 kubectl get pods 观察 Pod 名称是不是固定的 mysql-0/mysql-1，而不是随机后缀`,
     ],
     commandExamples: [`kubectl get statefulsets`, `kubectl describe statefulset mysql`],
     yamlExample: `apiVersion: apps/v1
@@ -833,6 +860,16 @@ spec:
         resources:
           requests:
             storage: 10Gi`,
+    verification: {
+      instruction: `创建一个名为 mysql、replicas 为 2 的 StatefulSet`,
+      verify: (resources) =>
+        resources.some(
+          (resource): resource is StatefulSet =>
+            resource.kind === 'StatefulSet' &&
+            resource.metadata.name === 'mysql' &&
+            resource.spec.replicas === 2
+        ),
+    },
     quiz: [
       {
         question: `StatefulSet 相比 Deployment 增加了什么保证？`,
@@ -847,8 +884,8 @@ spec:
       },
     ],
     commonMistakes: [`用 Deployment 部署数据库集群，结果 Pod 重建后各节点身份错乱`],
-    summary: `StatefulSet 是为有状态应用设计的控制器，核心是稳定身份和稳定存储。
-本模拟器暂未实现该资源类型。`,
+    summary: `StatefulSet 是为有状态应用设计的控制器，核心是稳定身份。本模拟器已
+支持创建和删除自愈，但不模拟有序生命周期和 volumeClaimTemplates。`,
   },
 
   {

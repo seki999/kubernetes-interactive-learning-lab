@@ -4,8 +4,10 @@ import { buildResourceKey } from '@/kubernetes/api-server/resourceKey'
 import { CONTROL_PLANE_NODE_IDS } from './controlPlaneIds'
 import type {
   ConfigMap,
+  DaemonSet,
   Deployment,
   Endpoints,
+  Ingress,
   KubernetesResource,
   Namespace,
   Node as K8sNode,
@@ -17,6 +19,7 @@ import type {
   Service,
   Job,
   CronJob,
+  StatefulSet,
 } from '@/types/k8s'
 
 export interface TopologyGraph {
@@ -34,10 +37,12 @@ export interface TopologyGraph {
  * - 顶部：Control Plane
  * - 左上：Namespace 与 Node
  * - 中部：Deployment -> ReplicaSet -> Pod，以及 Service -> Endpoints -> Pod
+ * - 右上：Ingress -> Service（静态展示，不模拟真实流量转发）
+ * - 中下：StatefulSet / DaemonSet -> Pod（二者都直接拥有 Pod，没有 ReplicaSet 这一层）
  * - 底部：ConfigMap / Secret / PVC -> PV
  *
- * 默认完整示例会覆盖当前支持的全部 11 种资源，因此这里不能只画工作负载的最终
- * Pod；控制器生成的中间对象和存储绑定关系也必须成为可点击节点。
+ * 默认完整示例会覆盖当前支持的绝大多数资源种类，因此这里不能只画工作负载的
+ * 最终 Pod；控制器生成的中间对象和存储绑定关系也必须成为可点击节点。
  */
 export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGraph {
   const nodes: FlowNode[] = []
@@ -98,6 +103,15 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
   const cronJobs = resources.filter(
     (resource): resource is CronJob => resource.kind === 'CronJob'
   )
+  const statefulSets = resources.filter(
+    (resource): resource is StatefulSet => resource.kind === 'StatefulSet'
+  )
+  const daemonSets = resources.filter(
+    (resource): resource is DaemonSet => resource.kind === 'DaemonSet'
+  )
+  const ingresses = resources.filter(
+    (resource): resource is Ingress => resource.kind === 'Ingress'
+  )
   const configLikeResources: (ConfigMap | Secret | PersistentVolumeClaim)[] = [
     ...configMaps,
     ...secrets,
@@ -132,6 +146,28 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
       position: { x: 40, y: 380 + index * 110 },
       data: { label: `Deployment\n${deployment.metadata.name}` },
       style: nodeBoxStyle('#dbeafe', '#2563eb'),
+    })
+  })
+
+  statefulSets.forEach((statefulSet, index) => {
+    nodes.push({
+      id: resourceKeyOf(statefulSet),
+      position: { x: 40, y: 900 + index * 110 },
+      data: {
+        label: `StatefulSet\n${statefulSet.metadata.name}\n${statefulSet.status.readyReplicas}/${statefulSet.spec.replicas} Ready`,
+      },
+      style: nodeBoxStyle('#fce7f3', '#db2777'),
+    })
+  })
+
+  daemonSets.forEach((daemonSet, index) => {
+    nodes.push({
+      id: resourceKeyOf(daemonSet),
+      position: { x: 280, y: 900 + index * 110 },
+      data: {
+        label: `DaemonSet\n${daemonSet.metadata.name}\n${daemonSet.status.numberReady}/${daemonSet.status.desiredNumberScheduled} Ready`,
+      },
+      style: nodeBoxStyle('#fff7ed', '#ea580c'),
     })
   })
 
@@ -241,6 +277,12 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
     const jobOwner = pod.metadata.ownerReferences?.find(
       (reference) => reference.kind === 'Job'
     )
+    const statefulSetOwner = pod.metadata.ownerReferences?.find(
+      (reference) => reference.kind === 'StatefulSet'
+    )
+    const daemonSetOwner = pod.metadata.ownerReferences?.find(
+      (reference) => reference.kind === 'DaemonSet'
+    )
     const replicaSet = owner
       ? replicaSets.find(
           (candidate) =>
@@ -260,6 +302,22 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
         )
       : undefined
     if (job) edges.push(edge(resourceKeyOf(job), podId))
+    const statefulSet = statefulSetOwner
+      ? statefulSets.find(
+          (candidate) =>
+            candidate.metadata.uid === statefulSetOwner.uid ||
+            candidate.metadata.name === statefulSetOwner.name
+        )
+      : undefined
+    if (statefulSet) edges.push(edge(resourceKeyOf(statefulSet), podId))
+    const daemonSet = daemonSetOwner
+      ? daemonSets.find(
+          (candidate) =>
+            candidate.metadata.uid === daemonSetOwner.uid ||
+            candidate.metadata.name === daemonSetOwner.name
+        )
+      : undefined
+    if (daemonSet) edges.push(edge(resourceKeyOf(daemonSet), podId))
     if (revision) {
       const node = nodes.find((candidate) => candidate.id === podId)
       if (node) {
@@ -287,6 +345,44 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
     )
     if (endpoints) {
       edges.push(edge(serviceId, resourceKeyOf(endpoints)))
+    }
+  })
+
+  ingresses.forEach((ingress, index) => {
+    const ingressId = resourceKeyOf(ingress)
+    nodes.push({
+      id: ingressId,
+      position: { x: 800, y: 150 + index * 110 },
+      data: {
+        label: ingress.status.message
+          ? `Ingress\n${ingress.metadata.name}\n⚠ backend 缺失`
+          : `Ingress\n${ingress.metadata.name}`,
+      },
+      style: ingress.status.message
+        ? nodeBoxStyle('#fee2e2', '#dc2626')
+        : nodeBoxStyle('#e0e7ff', '#4f46e5'),
+    })
+
+    // Ingress 只做静态展示：把 defaultBackend 和每条 rule 的 path 引用的
+    // backend Service 都画一条连线，不模拟真实的 host/path 匹配与转发。
+    const backendServiceNames = new Set<string>()
+    if (ingress.spec.defaultBackend) {
+      backendServiceNames.add(ingress.spec.defaultBackend.service.name)
+    }
+    for (const rule of ingress.spec.rules ?? []) {
+      for (const path of rule.http?.paths ?? []) {
+        backendServiceNames.add(path.backend.service.name)
+      }
+    }
+    for (const serviceName of backendServiceNames) {
+      const target = services.find(
+        (service) =>
+          service.metadata.name === serviceName &&
+          service.metadata.namespace === ingress.metadata.namespace
+      )
+      if (target) {
+        edges.push(edge(ingressId, resourceKeyOf(target)))
+      }
     }
   })
 
@@ -368,6 +464,9 @@ export function buildTopologyGraph(resources: KubernetesResource[]): TopologyGra
           resource.kind === 'PersistentVolumeClaim' ||
           resource.kind === 'Job' ||
           resource.kind === 'CronJob' ||
+          resource.kind === 'StatefulSet' ||
+          resource.kind === 'DaemonSet' ||
+          resource.kind === 'Ingress' ||
           (resource.kind === 'Pod' && !resource.metadata.ownerReferences?.length))
     )
     topLevelResidents.forEach((resource) => {

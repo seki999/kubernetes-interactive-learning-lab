@@ -1,5 +1,6 @@
 import { emitEvent } from '@/kubernetes/events/emitEvent'
 import { runControllersFor } from '@/kubernetes/controllers/reconcile'
+import { reconcileIngressesForServiceChange } from '@/kubernetes/controllers/ingressController'
 import { emitDomainEvent } from '@/simulation/event-bus/eventBus'
 import { validateResource } from './validation'
 import {
@@ -47,6 +48,7 @@ const RESOURCE_PATHS: Record<ResourceKind, string> = {
   DaemonSet: 'daemonsets',
   HorizontalPodAutoscaler: 'horizontalpodautoscalers',
   StatefulSet: 'statefulsets',
+  Ingress: 'ingresses',
 }
 
 function apiUrl(resource: KubernetesResource): string {
@@ -384,6 +386,9 @@ export function deleteResource(
   const replicaSetOwnerRef = resource.metadata.ownerReferences?.find(
     (ref: OwnerReference) => ref.kind === 'ReplicaSet'
   )
+  const statefulSetOwnerRef = resource.metadata.ownerReferences?.find(
+    (ref: OwnerReference) => ref.kind === 'StatefulSet'
+  )
 
   deleteResourceCascade(kind, name, namespace)
   tracePersisted(resource, 200, 'DELETED')
@@ -395,11 +400,27 @@ export function deleteResource(
     }
   }
 
+  // 和上面的 ReplicaSet 分支同理：单独删除某个 StatefulSet 管理的 Pod 时，
+  // 主动让 StatefulSet 重新调谐一次，立刻用同一个名字（同一个序号）补上，
+  // 这样才能演示"StatefulSet 的 Pod 有稳定身份，删了会用原名字重建"。
+  if (statefulSetOwnerRef) {
+    const owner = getResource('StatefulSet', statefulSetOwnerRef.name, namespace)
+    if (owner) {
+      runControllersFor('StatefulSet', owner)
+    }
+  }
+
   // 删除 Node 后，DaemonSet 的 desiredNumberScheduled 等状态计数也需要跟着
   // 减少——deleteResourceCascade 只负责清理这个 Node 上的 DaemonSet Pod，
   // 不会重新计算 DaemonSet.status，这里复用"Node 变化后重新调谐"的入口
   // （和 reconcile.ts 里 Node 被创建/更新时的处理保持一致）。
   if (kind === 'Node') {
     runControllersFor('Node', resource)
+  }
+
+  // 删除 Service 后，引用它的 Ingress 的 backend 校验结果应该从"存在"
+  // 变回"缺失"，这里和 Node 分支同理，复用"Service 变化后重新调谐"的入口。
+  if (kind === 'Service') {
+    reconcileIngressesForServiceChange(namespace)
   }
 }

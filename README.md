@@ -11,8 +11,8 @@
 ### 已完整实现
 
 - **虚拟 Kubernetes 核心**：内存中的虚拟 etcd（可选 IndexedDB 持久化）+ 虚拟 API Server（CRUD、结构校验、Events）+ 简化 Scheduler（按 CPU/内存 requests、Taint/Toleration 匹配节点）+ Kubelet 状态机（Pending → ContainerCreating → Running / ImagePullBackOff / CrashLoopBackOff）。
-- **控制器**：Deployment/ReplicaSet 控制器（副本数调谐、自愈，滚动更新按 `maxSurge`/`maxUnavailable`（支持整数和百分比）分批替换新旧 ReplicaSet，保留 revision 历史，支持 `rollout undo` 回滚）、Endpoint 控制器（Service selector 匹配 + Endpoints 自动刷新）、PVC-PV 绑定控制器、Node 故障 → Pod 驱逐重新调度控制器、DaemonSet 控制器（每个符合条件的 Node 一个 Pod）、HorizontalPodAutoscaler 控制器（基于可控 Metrics Simulator 的自动扩缩容，含冷却时间和缩容稳定窗口的简化模拟）。
-- **支持的资源类型**：Pod、Deployment、ReplicaSet、Service、Endpoints、Node、Namespace、ConfigMap、Secret、PersistentVolumeClaim、PersistentVolume、Job、CronJob、DaemonSet、HorizontalPodAutoscaler（HPA）。
+- **控制器**：Deployment/ReplicaSet 控制器（副本数调谐、自愈，滚动更新按 `maxSurge`/`maxUnavailable`（支持整数和百分比）分批替换新旧 ReplicaSet，保留 revision 历史，支持 `rollout undo` 回滚）、Endpoint 控制器（Service selector 匹配 + Endpoints 自动刷新）、PVC-PV 绑定控制器、Node 故障 → Pod 驱逐重新调度控制器、DaemonSet 控制器（每个符合条件的 Node 一个 Pod）、HorizontalPodAutoscaler 控制器（基于可控 Metrics Simulator 的自动扩缩容，支持 Deployment 和 StatefulSet 作为 `scaleTargetRef`，含冷却时间和缩容稳定窗口的简化模拟）、StatefulSet 控制器（轻量版：稳定命名/身份的 Pod，不模拟有序生命周期）、Ingress 控制器（静态校验引用的 backend Service 是否存在，不做真实流量转发）。
+- **支持的资源类型**：Pod、Deployment、ReplicaSet、StatefulSet、Service、Endpoints、Node、Namespace、ConfigMap、Secret、PersistentVolumeClaim、PersistentVolume、Job、CronJob、DaemonSet、HorizontalPodAutoscaler（HPA）、Ingress。
 - **交互工具**：
   - kubectl 终端（基于 xterm.js），支持 `get/describe/create/apply/delete/expose/scale/set image/logs/top/cordon/uncordon/drain/taint/label/annotate/config/api-resources/explain` 等子命令和自动补全；
   - YAML 实验室（Monaco 编辑器），支持实时结构校验、`apply -f`/`delete -f`、应用前后差异预览；
@@ -25,14 +25,16 @@
 
 为了保证诚实透明，以下内容会在界面里明确提示，不会假装已经支持：
 
-- **不支持的资源类型**：Ingress、StatefulSet、PodDisruptionBudget、RBAC（Role/RoleBinding/ServiceAccount）、NetworkPolicy。相关课程/实验/故障场景会明确标注"尚未实现"或"仅作参考说明"，不提供可交互验证。（Job/CronJob/DaemonSet/HorizontalPodAutoscaler 已实现，见上方"支持的资源类型"。）
+- **不支持的资源类型**：PodDisruptionBudget、RBAC（Role/RoleBinding/ServiceAccount）、NetworkPolicy。相关课程/实验/故障场景会明确标注"尚未实现"或"仅作参考说明"，不提供可交互验证。（Job/CronJob/DaemonSet/HorizontalPodAutoscaler/StatefulSet/Ingress 已实现，见上方"支持的资源类型"。）
+- **StatefulSet 是轻量版**：可以创建、会自愈（单独删除某个 Pod 会用同一个名字重建），但不实现真实 StatefulSet 默认的 OrderedReady 有序生命周期（一次调谐会把缺失序号的 Pod 一次性创建齐），也不模拟 `volumeClaimTemplates` 自动生成每个副本独立的 PVC，不模拟 Headless Service 的 DNS 解析。
+- **Ingress 只做静态校验和展示**：可以创建、会校验每条规则和 `defaultBackend` 引用的 backend Service 是否存在（不存在时会在 Events 和 `kubectl describe` 里提示），拓扑图会画出 Ingress → Service 的连线；但不运行真实的 Ingress Controller，不做实际的 HTTP(S) 流量转发或 TLS 终止，也不分配负载均衡器地址。
 - **`kubectl exec` / `kubectl edit`**：直接返回"尚未实现"提示，不做假装。
 - **`kubectl rollout`**：对 Deployment 已支持 `status/history/undo/restart/pause/resume`（真实的 revision 历史，而不是占位提示）；DaemonSet 目前只支持 `rollout status`，其余子命令会明确提示"暂不支持"而不是假装执行。
 - **滚动更新的剩余简化之处**：`revisionHistoryLimit` 字段目前不生效，旧 ReplicaSet 会一直保留、不会被自动清理；`progressDeadlineSeconds` 只有部分模拟（超时会标记为 Failed，但不是精确复刻真实 Kubernetes 的全部判定条件）。
-- **`kubectl describe`**：对 Pod/Deployment/Service/Job/CronJob/DaemonSet/HorizontalPodAutoscaler 做了专门排版，其余资源类型用通用 YAML 展示代替。
-- **拖拽式设计器**：只支持"拖入创建资源 + 点击查看详情/删除 + 拖动调整位置"，不支持用连线建立资源关系、双击内联编辑、撤销重做，且暂不支持拖入 DaemonSet/HorizontalPodAutoscaler。
+- **`kubectl describe`**：对 Pod/Deployment/Service/Job/CronJob/DaemonSet/HorizontalPodAutoscaler/StatefulSet/Ingress 做了专门排版，其余资源类型用通用 YAML 展示代替。
+- **拖拽式设计器**：只支持"拖入创建资源 + 点击查看详情/删除 + 拖动调整位置"，不支持用连线建立资源关系、双击内联编辑、撤销重做，且暂不支持拖入 DaemonSet/HorizontalPodAutoscaler/StatefulSet/Ingress。
 - **`kubectl top` 的资源用量**：不是随机数，而是由"负载模拟"面板显式设置的可控指标（相对于容器 `resources.requests` 的百分比），和 HPA 扩缩容读取同一份数据；但仍然是用户手动设置的模拟值，不是真实采集的指标。
-- **HPA 是简化实现**：只支持 Deployment 作为 `scaleTargetRef`、支持 Resource (CPU/内存)、Pods (RPS)、Object 和 External 类型指标；实现了 HPA 的自动轮询、容忍区间、扩缩容策略 (scaleUp/scaleDown policies) 和选择策略；教学简化：冷却时间和缩容稳定窗口被压缩到几秒到几十秒（真实 Kubernetes 默认是几分钟级别），且没有后台定时轮询——只在负载画像变化时才重新计算，避免"刷新页面/休眠后行为不可复现"。
+- **HPA 是简化实现**：支持 Deployment 和 StatefulSet 作为 `scaleTargetRef`（DaemonSet 会被明确拒绝，因为它每个节点固定一个 Pod）、支持 Resource (CPU/内存)、Pods (RPS)、Object 和 External 类型指标；实现了 HPA 的自动轮询、容忍区间、扩缩容策略 (scaleUp/scaleDown policies) 和选择策略；教学简化：冷却时间和缩容稳定窗口被压缩到几秒到几十秒（真实 Kubernetes 默认是几分钟级别），且没有后台定时轮询——只在负载画像变化时才重新计算，避免"刷新页面/休眠后行为不可复现"。
 
 ## 技术栈
 

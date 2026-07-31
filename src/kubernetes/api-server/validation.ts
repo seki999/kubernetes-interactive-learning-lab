@@ -237,5 +237,28 @@ export function validateResource(resource: KubernetesResource): string[] {
     }
   }
 
+  if (resource.kind === 'Ingress') {
+    const hasRules = (resource.spec.rules?.length ?? 0) > 0
+    if (!hasRules && !resource.spec.defaultBackend) {
+      errors.push('Ingress 必须至少设置一条 rules 或 defaultBackend')
+    }
+    if (resource.spec.defaultBackend && !resource.spec.defaultBackend.service?.name) {
+      errors.push('Ingress defaultBackend 必须设置 service.name')
+    }
+    resource.spec.rules?.forEach((rule, ruleIndex) => {
+      if (!rule.http?.paths || rule.http.paths.length === 0) {
+        errors.push(`第 ${ruleIndex + 1} 条 rule 必须至少设置一个 http.paths`)
+        return
+      }
+      rule.http.paths.forEach((path, pathIndex) => {
+        if (!path.backend?.service?.name) {
+          errors.push(
+            `第 ${ruleIndex + 1} 条 rule 的第 ${pathIndex + 1} 个 path 必须设置 backend.service.name`
+          )
+        }
+      })
+    })
+  }
+
   return errors
 }

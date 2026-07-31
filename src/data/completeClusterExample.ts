@@ -11,6 +11,8 @@
  * - DaemonSet 在每个 Node 上各运行一个日志采集 Pod
  * - HorizontalPodAutoscaler 根据（可由用户在负载模拟面板控制的）CPU 使用率
  *   对 Deployment 进行扩缩容
+ * - StatefulSet 管理一组稳定命名的 Pod（轻量版，不模拟有序生命周期）
+ * - Ingress 按 host/path 把流量路由到 Service（静态展示，校验 backend 是否存在）
  */
 export const COMPLETE_CLUSTER_YAML = `apiVersion: v1
 kind: Namespace
@@ -274,4 +276,62 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: learning-lab
+spec:
+  type: ClusterIP
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: learning-lab
+  labels:
+    app: mysql
+spec:
+  replicas: 2
+  serviceName: mysql
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: learning-web-ingress
+  namespace: learning-lab
+spec:
+  rules:
+    - host: learning-lab.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-web
+                port:
+                  number: 80
 `

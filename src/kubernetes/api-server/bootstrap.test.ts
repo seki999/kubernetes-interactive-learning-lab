@@ -29,12 +29,12 @@ describe('完整示例集群与从零学习模式', () => {
     await vi.advanceTimersByTimeAsync(500)
 
     expect(result?.errors).toEqual([])
-    expect(result?.appliedNames).toHaveLength(14)
+    expect(result?.appliedNames).toHaveLength(17)
     expect(useYamlEditorStore.getState().content).toBe(COMPLETE_CLUSTER_YAML)
 
     const resources = listAllResources()
     const kinds = new Set(resources.map((resource) => resource.kind))
-    const expectedKinds = new Set(ALL_RESOURCE_KINDS.filter((k) => k !== 'StatefulSet')) // since the seed data might not have statefulset yet
+    const expectedKinds = new Set(ALL_RESOURCE_KINDS)
     expect(kinds).toEqual(expectedKinds)
 
     const graph = buildTopologyGraph(resources)
@@ -53,6 +53,9 @@ describe('完整示例集群与从零学习模式', () => {
       'PersistentVolume',
       'Job',
       'CronJob',
+      'DaemonSet',
+      'StatefulSet',
+      'Ingress',
     ]) {
       expect(labels.some((label) => label.startsWith(expectedKind))).toBe(true)
     }

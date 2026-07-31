@@ -11,6 +11,7 @@ import {
 } from './daemonSetController'
 import { reconcileHpa } from './hpaController'
 import { reconcileStatefulSet } from './statefulSetController'
+import { reconcileIngress, reconcileIngressesForServiceChange } from './ingressController'
 import { trySchedulePod } from '@/kubernetes/scheduler/schedulingLoop'
 import type {
   Deployment,
@@ -25,6 +26,7 @@ import type {
   DaemonSet,
   HorizontalPodAutoscaler,
   StatefulSet,
+  Ingress,
 } from '@/types/k8s'
 
 /**
@@ -36,8 +38,9 @@ import type {
  *
  * 当前接入的控制器：Deployment、ReplicaSet、Service（Endpoint 控制器）、
  * PersistentVolumeClaim/PersistentVolume（绑定控制器）、Node（故障重新调度 +
- * DaemonSet 重新调谐）、DaemonSet、HorizontalPodAutoscaler，以及 Pod 创建后
- * 触发的 Scheduler、Job、CronJob。StatefulSet 尚未实现，会在后续阶段补充。
+ * DaemonSet 重新调谐）、DaemonSet、HorizontalPodAutoscaler、StatefulSet
+ * （轻量版，不模拟有序生命周期）、Ingress（静态校验 backend Service 是否存在），
+ * 以及 Pod 创建后触发的 Scheduler、Job、CronJob。
  */
 export function runControllersFor(
   kind: ResourceKind,
@@ -52,6 +55,9 @@ export function runControllersFor(
       break
     case 'Service':
       reconcileService(resource as Service)
+      // Service 的创建/更新可能让某些 Ingress 引用的 backend 从"缺失"变为
+      // "存在"，这里顺带重新校验同一 Namespace 下的全部 Ingress。
+      reconcileIngressesForServiceChange(resource.metadata.namespace)
       break
     case 'Pod':
       trySchedulePod(resource.metadata.name, resource.metadata.namespace)
@@ -83,6 +89,9 @@ export function runControllersFor(
       break
     case 'StatefulSet':
       reconcileStatefulSet(resource as StatefulSet)
+      break
+    case 'Ingress':
+      reconcileIngress(resource as Ingress)
       break
     default:
       break

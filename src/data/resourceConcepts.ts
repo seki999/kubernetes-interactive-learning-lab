@@ -263,16 +263,31 @@ export const RESOURCE_CONCEPTS: Record<ResourceKind, ResourceConcept> = {
     label: 'StatefulSet',
     scope: '命名空间级',
     role: '有状态应用管理',
-    summary: '管理一组具有稳定身份标识、持久化存储和有序部署/扩缩容的 Pod。',
+    summary: '管理一组具有稳定身份标识（固定序号命名）的 Pod，适合数据库等有状态应用。',
     details:
-      'Pod 名称有固定序号，支持有序创建和删除。每个 Pod 可通过 volumeClaimTemplates 自动创建独立的 PVC，即使 Pod 被重建也会绑定原有的持久化数据。',
+      'Pod 按 <name>-0、<name>-1... 固定序号命名，单独删除某个 Pod 会用相同的名字重建（身份不变）。教学简化：本模拟器不实现真实 StatefulSet 默认的"必须等前一个 Pod Ready 才创建下一个"的有序生命周期，也不模拟 volumeClaimTemplates 自动生成每个副本独立的 PVC——一次调谐会把缺失序号的 Pod 一次性创建齐。',
     relationships: [
-      { target: 'Pod', description: '创建按序号命名的 Pod，且具有稳定网络标识' },
+      { target: 'Pod', description: '创建按固定序号命名、身份稳定的 Pod' },
       {
         target: 'Service',
-        description: '通常配合 Headless Service 提供基于 DNS 的稳定访问',
+        description:
+          '真实场景通常配合 Headless Service 提供基于 DNS 的稳定访问（本模拟器暂不模拟 DNS 解析）',
       },
-      { target: 'PersistentVolumeClaim', description: '为每个 Pod 独立申请持久化卷' },
+    ],
+  },
+  Ingress: {
+    label: 'Ingress',
+    scope: '命名空间级',
+    role: '七层入口路由规则',
+    summary: '按域名和路径把外部 HTTP(S) 请求路由到集群内部不同的 Service。',
+    details:
+      '一个 Ingress 可以描述多条 host/path 规则，每条规则都指向某个 Service 作为后端。教学简化：本模拟器只做静态校验（引用的 backend Service 是否存在）和拓扑图展示，不运行真实的 Ingress Controller、不模拟 TLS 终止或实际的 HTTP 流量转发。',
+    relationships: [
+      {
+        target: 'Service',
+        description: '每条规则的 backend 都指向某个 Service，作为流量的最终目的地',
+      },
+      { target: 'Pod', description: '通过 Service 间接把流量导向对应的后端 Pod' },
     ],
   },
 }

@@ -5,7 +5,13 @@ import {
 } from '@/kubernetes/api-server/apiServer'
 import { parseArgs, resolveNamespace, toStringFlag } from '@/terminal/parser/parseArgs'
 import { fail, formatApiServerError, ok, type CommandOutput } from './types'
-import type { DaemonSet, Deployment, Service, ServiceType } from '@/types/k8s'
+import type {
+  DaemonSet,
+  Deployment,
+  Service,
+  ServiceType,
+  StatefulSet,
+} from '@/types/k8s'
 import { CHANGE_CAUSE_ANNOTATION } from '@/kubernetes/deployment/rollout'
 
 /** 把 "deployment/web" 或 "deployment web" 这两种写法都解析成资源类型 + 名称。 */
@@ -25,11 +31,17 @@ export function runScale(argv: string[]): CommandOutput {
   }
   const replicasFlag = toStringFlag(flags.replicas)
 
-  if (target.kind !== 'deployment' && target.kind !== 'deploy') {
-    return fail(['error: 目前只支持 kubectl scale deployment <名称> --replicas=<数量>'])
+  const isDeployment = target.kind === 'deployment' || target.kind === 'deploy'
+  const isStatefulSet = target.kind === 'statefulset' || target.kind === 'sts'
+  if (!isDeployment && !isStatefulSet) {
+    return fail([
+      'error: 目前只支持 kubectl scale deployment|statefulset <名称> --replicas=<数量>',
+    ])
   }
   if (!target.name || replicasFlag === undefined) {
-    return fail(['error: 用法：kubectl scale deployment <名称> --replicas=<数量>'])
+    return fail([
+      'error: 用法：kubectl scale deployment|statefulset <名称> --replicas=<数量>',
+    ])
   }
   const replicas = Number(replicasFlag)
   if (!Number.isInteger(replicas) || replicas < 0) {
@@ -38,6 +50,13 @@ export function runScale(argv: string[]): CommandOutput {
 
   const namespace = resolveNamespace(flags)
   try {
+    if (isStatefulSet) {
+      updateResource<StatefulSet>('StatefulSet', target.name, namespace, (current) => ({
+        ...current,
+        spec: { ...current.spec, replicas },
+      }))
+      return ok([`statefulset.apps/${target.name} scaled`])
+    }
     updateResource<Deployment>('Deployment', target.name, namespace, (current) => ({
       ...current,
       spec: { ...current.spec, replicas },

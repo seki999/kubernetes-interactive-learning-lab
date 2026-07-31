@@ -15,6 +15,8 @@ import type {
   CronJob,
   DaemonSet,
   HorizontalPodAutoscaler,
+  StatefulSet,
+  Ingress,
 } from '@/types/k8s'
 
 /**
@@ -232,6 +234,38 @@ function buildResourceRows(
           String(hpa.spec.maxReplicas),
           String(hpa.status.currentReplicas),
           formatAge(hpa.metadata.creationTimestamp),
+        ])
+      })
+      return [headers, rows]
+    }
+
+    case 'StatefulSet': {
+      const statefulSets = items as StatefulSet[]
+      const headers = withNamespace(['NAME', 'READY', 'AGE'])
+      const rows = statefulSets.map((statefulSet) =>
+        withNamespaceRow(statefulSet.metadata.namespace, [
+          statefulSet.metadata.name,
+          `${statefulSet.status.readyReplicas}/${statefulSet.spec.replicas}`,
+          formatAge(statefulSet.metadata.creationTimestamp),
+        ])
+      )
+      return [headers, rows]
+    }
+
+    case 'Ingress': {
+      const ingresses = items as Ingress[]
+      // 诚实说明：本模拟器不运行真实的 Ingress Controller，不分配负载均衡器
+      // 地址，ADDRESS 列始终是 <none>。
+      const headers = withNamespace(['NAME', 'CLASS', 'HOSTS', 'ADDRESS', 'PORTS', 'AGE'])
+      const rows = ingresses.map((ingress) => {
+        const hosts = (ingress.spec.rules ?? []).map((rule) => rule.host ?? '*').join(',')
+        return withNamespaceRow(ingress.metadata.namespace, [
+          ingress.metadata.name,
+          ingress.spec.ingressClassName ?? '<none>',
+          hosts || '*',
+          '<none>',
+          '80',
+          formatAge(ingress.metadata.creationTimestamp),
         ])
       })
       return [headers, rows]

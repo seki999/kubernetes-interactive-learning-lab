@@ -52,6 +52,10 @@ function getStatusSummary(resource: KubernetesResource): string {
       return `${resource.status.numberReady}/${resource.status.desiredNumberScheduled} Ready`
     case 'HorizontalPodAutoscaler':
       return `${resource.status.currentReplicas}/${resource.spec.maxReplicas}（期望 ${resource.status.desiredReplicas}）`
+    case 'StatefulSet':
+      return `${resource.status.readyReplicas}/${resource.spec.replicas} Ready`
+    case 'Ingress':
+      return resource.status.message ? '⚠ Backend 缺失' : 'OK'
     default:
       return '-'
   }

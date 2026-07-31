@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { buildTopologyGraph } from './buildTopologyGraph'
 import { buildResourceKey } from '@/kubernetes/api-server/resourceKey'
-import type { Endpoints, Node, Pod, Service } from '@/types/k8s'
+import type {
+  DaemonSet,
+  Endpoints,
+  Ingress,
+  Node,
+  Pod,
+  Service,
+  StatefulSet,
+} from '@/types/k8s'
 
 const baseMeta = {
   uid: 'node-1',
@@ -129,5 +137,174 @@ describe('buildTopologyGraph', () => {
     expect(
       graph.edges.some((edge) => edge.source === endpointsId && edge.target === podId)
     ).toBe(true)
+  })
+
+  it('StatefulSet 直接拥有 Pod（没有中间的 ReplicaSet），会有一条 StatefulSet -> Pod 的连线', () => {
+    const statefulSet: StatefulSet = {
+      apiVersion: 'apps/v1',
+      kind: 'StatefulSet',
+      metadata: {
+        uid: 'sts-1',
+        name: 'mysql',
+        namespace: 'default',
+        resourceVersion: '1',
+        creationTimestamp: '2026-01-01T00:00:00.000Z',
+      },
+      spec: {
+        replicas: 1,
+        serviceName: 'mysql',
+        selector: { matchLabels: { app: 'mysql' } },
+        template: {
+          metadata: { labels: { app: 'mysql' } },
+          spec: { containers: [{ name: 'mysql', image: 'mysql:8.0' }] },
+        },
+      },
+      status: { replicas: 1, readyReplicas: 1, currentReplicas: 1, updatedReplicas: 1 },
+    }
+    const pod = makePod({
+      metadata: {
+        uid: 'pod-sts',
+        name: 'mysql-0',
+        namespace: 'default',
+        resourceVersion: '1',
+        creationTimestamp: '2026-01-01T00:00:00.000Z',
+        ownerReferences: [
+          { apiVersion: 'apps/v1', kind: 'StatefulSet', name: 'mysql', uid: 'sts-1' },
+        ],
+      },
+    })
+    const graph = buildTopologyGraph([statefulSet, pod])
+    const statefulSetId = buildResourceKey('StatefulSet', 'mysql', 'default')
+    const podId = buildResourceKey('Pod', pod.metadata.name, pod.metadata.namespace)
+    expect(graph.nodes.some((n) => n.id === statefulSetId)).toBe(true)
+    expect(
+      graph.edges.some((edge) => edge.source === statefulSetId && edge.target === podId)
+    ).toBe(true)
+  })
+
+  it('DaemonSet 直接拥有 Pod，会有一条 DaemonSet -> Pod 的连线', () => {
+    const daemonSet: DaemonSet = {
+      apiVersion: 'apps/v1',
+      kind: 'DaemonSet',
+      metadata: {
+        uid: 'ds-1',
+        name: 'node-agent',
+        namespace: 'default',
+        resourceVersion: '1',
+        creationTimestamp: '2026-01-01T00:00:00.000Z',
+      },
+      spec: {
+        selector: { matchLabels: { app: 'node-agent' } },
+        template: {
+          metadata: { labels: { app: 'node-agent' } },
+          spec: { containers: [{ name: 'agent', image: 'fluent/fluent-bit:2.2' }] },
+        },
+      },
+      status: {
+        desiredNumberScheduled: 1,
+        currentNumberScheduled: 1,
+        numberReady: 1,
+        numberAvailable: 1,
+        numberMisscheduled: 0,
+      },
+    }
+    const pod = makePod({
+      metadata: {
+        uid: 'pod-ds',
+        name: 'node-agent-node-1',
+        namespace: 'default',
+        resourceVersion: '1',
+        creationTimestamp: '2026-01-01T00:00:00.000Z',
+        ownerReferences: [
+          { apiVersion: 'apps/v1', kind: 'DaemonSet', name: 'node-agent', uid: 'ds-1' },
+        ],
+      },
+    })
+    const graph = buildTopologyGraph([daemonSet, pod])
+    const daemonSetId = buildResourceKey('DaemonSet', 'node-agent', 'default')
+    const podId = buildResourceKey('Pod', pod.metadata.name, pod.metadata.namespace)
+    expect(graph.nodes.some((n) => n.id === daemonSetId)).toBe(true)
+    expect(
+      graph.edges.some((edge) => edge.source === daemonSetId && edge.target === podId)
+    ).toBe(true)
+  })
+
+  it('Ingress 按引用的 backend Service 画连线，找不到时节点会标红并且不产生连线', () => {
+    const service: Service = {
+      apiVersion: 'v1',
+      kind: 'Service',
+      metadata: {
+        uid: 'svc-1',
+        name: 'web-svc',
+        namespace: 'default',
+        resourceVersion: '1',
+        creationTimestamp: '2026-01-01T00:00:00.000Z',
+      },
+      spec: {
+        type: 'ClusterIP',
+        selector: { app: 'web' },
+        ports: [{ port: 80, targetPort: 80 }],
+      },
+      status: { clusterIP: '10.96.0.1' },
+    }
+    const ingressOk: Ingress = {
+      apiVersion: 'networking.k8s.io/v1',
+      kind: 'Ingress',
+      metadata: {
+        uid: 'ing-1',
+        name: 'web-ingress',
+        namespace: 'default',
+        resourceVersion: '1',
+        creationTimestamp: '2026-01-01T00:00:00.000Z',
+      },
+      spec: {
+        rules: [
+          {
+            host: 'demo.example.com',
+            http: {
+              paths: [
+                {
+                  path: '/',
+                  pathType: 'Prefix',
+                  backend: { service: { name: 'web-svc', port: { number: 80 } } },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      status: {},
+    }
+    const ingressMissing: Ingress = {
+      ...ingressOk,
+      metadata: { ...ingressOk.metadata, uid: 'ing-2', name: 'broken-ingress' },
+      status: { message: '引用的 backend Service 不存在：missing-svc' },
+      spec: {
+        rules: [
+          {
+            host: 'demo.example.com',
+            http: {
+              paths: [
+                {
+                  path: '/',
+                  pathType: 'Prefix',
+                  backend: { service: { name: 'missing-svc', port: { number: 80 } } },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    }
+    const graph = buildTopologyGraph([service, ingressOk, ingressMissing])
+    const serviceId = buildResourceKey('Service', 'web-svc', 'default')
+    const ingressOkId = buildResourceKey('Ingress', 'web-ingress', 'default')
+    const ingressMissingId = buildResourceKey('Ingress', 'broken-ingress', 'default')
+    expect(
+      graph.edges.some((edge) => edge.source === ingressOkId && edge.target === serviceId)
+    ).toBe(true)
+    expect(graph.edges.some((edge) => edge.source === ingressMissingId)).toBe(false)
+    const missingNode = graph.nodes.find((n) => n.id === ingressMissingId)
+    expect(String(missingNode?.data.label)).toContain('⚠')
   })
 })

@@ -45,6 +45,12 @@ export const KIND_ALIASES: Record<string, ResourceKind> = {
   horizontalpodautoscaler: 'HorizontalPodAutoscaler',
   horizontalpodautoscalers: 'HorizontalPodAutoscaler',
   hpa: 'HorizontalPodAutoscaler',
+  statefulset: 'StatefulSet',
+  statefulsets: 'StatefulSet',
+  sts: 'StatefulSet',
+  ingress: 'Ingress',
+  ingresses: 'Ingress',
+  ing: 'Ingress',
 }
 
 /** kubectl get all 会展示的资源类型（贴近真实 kubectl 的默认范围）。 */
@@ -54,5 +60,6 @@ export const GET_ALL_KINDS: ResourceKind[] = [
   'Deployment',
   'ReplicaSet',
   'DaemonSet',
+  'StatefulSet',
   'Job',
 ]

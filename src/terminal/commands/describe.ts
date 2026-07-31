@@ -11,10 +11,12 @@ import type {
   Deployment,
   Endpoints,
   HorizontalPodAutoscaler,
+  Ingress,
   Job,
   K8sEvent,
   Pod,
   Service,
+  StatefulSet,
 } from '@/types/k8s'
 
 function describeEvents(
@@ -259,6 +261,59 @@ function describeHpa(hpa: HorizontalPodAutoscaler): string[] {
   return lines
 }
 
+function describeStatefulSet(statefulSet: StatefulSet): string[] {
+  return [
+    `Name:               ${statefulSet.metadata.name}`,
+    `Namespace:          ${statefulSet.metadata.namespace ?? '-'}`,
+    `Selector:           ${formatLabels(statefulSet.spec.selector.matchLabels)}`,
+    `Service Name:       ${statefulSet.spec.serviceName}`,
+    `Pod Management Policy: ${statefulSet.spec.podManagementPolicy ?? 'OrderedReady'}（教学简化：本模拟器不区分这两种策略，一次调谐会把缺失的 Pod 一次性创建齐）`,
+    `Replicas:           ${statefulSet.status.currentReplicas} current / ${statefulSet.spec.replicas} desired`,
+    `Ready Replicas:     ${statefulSet.status.readyReplicas}`,
+    `Update Strategy:    RollingUpdate（教学简化：本模拟器不模拟滚动更新，修改镜像不会自动重建已有 Pod）`,
+    `Image(s):           ${statefulSet.spec.template.spec.containers.map((c) => c.image).join(', ')}`,
+    '',
+    ...describeEvents(
+      'StatefulSet',
+      statefulSet.metadata.name,
+      statefulSet.metadata.namespace
+    ),
+  ]
+}
+
+function describeIngress(ingress: Ingress): string[] {
+  const rules = ingress.spec.rules ?? []
+  const ruleLines: string[] =
+    rules.length === 0
+      ? ['Rules:              <none>']
+      : [
+          'Rules:',
+          '  Host        Path  Backends',
+          '  ----        ----  --------',
+          ...rules.flatMap((rule) =>
+            (rule.http?.paths ?? []).map(
+              (path) =>
+                `  ${rule.host ?? '*'}   ${path.path ?? '/'}   ${path.backend.service.name}:${path.backend.service.port.number}`
+            )
+          ),
+        ]
+  return [
+    `Name:               ${ingress.metadata.name}`,
+    `Namespace:          ${ingress.metadata.namespace ?? '-'}`,
+    `IngressClassName:   ${ingress.spec.ingressClassName ?? '<none>'}`,
+    `Default Backend:    ${
+      ingress.spec.defaultBackend
+        ? `${ingress.spec.defaultBackend.service.name}:${ingress.spec.defaultBackend.service.port.number}`
+        : '<none>'
+    }`,
+    ...ruleLines,
+    `Address:            <none>（教学简化：本模拟器不运行真实 Ingress Controller，不分配负载均衡器地址）`,
+    `Status:             ${ingress.status.message ? `⚠ ${ingress.status.message}` : 'OK，所有引用的 backend Service 均存在'}`,
+    '',
+    ...describeEvents('Ingress', ingress.metadata.name, ingress.metadata.namespace),
+  ]
+}
+
 function formatLabels(labels: Record<string, string> | undefined): string {
   if (!labels || Object.keys(labels).length === 0) {
     return '<none>'
@@ -309,6 +364,10 @@ export function runDescribe(argv: string[]): CommandOutput {
       lines.push(...describeDaemonSet(resource as DaemonSet))
     } else if (resource!.kind === 'HorizontalPodAutoscaler') {
       lines.push(...describeHpa(resource as HorizontalPodAutoscaler))
+    } else if (resource!.kind === 'StatefulSet') {
+      lines.push(...describeStatefulSet(resource as StatefulSet))
+    } else if (resource!.kind === 'Ingress') {
+      lines.push(...describeIngress(resource as Ingress))
     } else {
       // 其余资源类型暂时用通用的 YAML 展示代替专门的 describe 排版。
       lines.push(

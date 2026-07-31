@@ -17,6 +17,7 @@ export type TraceComponent =
   | 'daemonset-controller'
   | 'hpa-controller'
   | 'statefulset-controller'
+  | 'ingress-controller'
 
 export interface ResourceReference {
   kind: string

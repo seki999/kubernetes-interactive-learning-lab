@@ -18,6 +18,8 @@ const COMPONENTS: TraceComponent[] = [
   'cronjob-controller',
   'daemonset-controller',
   'hpa-controller',
+  'statefulset-controller',
+  'ingress-controller',
 ]
 
 function duration(startedAt?: number, finishedAt?: number): string {
